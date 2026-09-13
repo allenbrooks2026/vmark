@@ -2,11 +2,17 @@
  * Real-WebKit tier — a display equation's `\tag` sits at the right edge of
  * the BLOCK, not on the last term (#1376, #1402).
  *
- * jsdom computes no layout, so the node-tier `displayMathTag.test.ts` can only
- * read stylesheets. That is how #1376 shipped as fixed while users still saw
- * the overlap: its rule and its test both named a class nothing renders. This
- * file measures the real thing — the stylesheets the app loads, the renderer
- * and sanitizer the preview uses, inside the containers codePreview creates.
+ * jsdom computes no layout, so the node-tier
+ * `plugins/latex/displayMathTag.test.ts` can only read stylesheets. That is
+ * how #1376 shipped as fixed while users still saw the overlap: its rule and
+ * its test both named a class nothing renders. This file measures the real
+ * thing — the stylesheets the app loads, the renderer and sanitizer the
+ * preview uses, inside the containers codePreview creates.
+ *
+ * It lives in codePreview, not latex: the containers it measures are
+ * codePreview's, and codePreview is the fence-preview hub that the
+ * `plugin-isolation` dependency rule licenses to import the latex plugin. From
+ * `plugins/latex/` the same imports are a cross-plugin violation.
  *
  * **The failure is constructed, not assumed.** The first case forces
  * `.katex-display` back to `width: auto` and asserts the probe SEES the
@@ -15,7 +21,7 @@
  */
 import "katex/dist/katex.min.css";
 import "@/styles/katexFixes.css";
-import "@/plugins/codePreview/code-preview.css";
+import "./code-preview.css";
 import { describe, it, expect, afterEach } from "vitest";
 import { renderLatex } from "@/plugins/latex";
 import { sanitizeKatex } from "@/utils/sanitize";
