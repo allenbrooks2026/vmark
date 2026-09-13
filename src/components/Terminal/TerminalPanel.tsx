@@ -15,6 +15,8 @@
  *     copy-command-output menu (the last needs shell integration)
  *   - Use the tab bar to create/switch/close sessions and swap the panel side
  *   - Cmd+F within terminal opens the inline search bar
+ *   - Mod+Shift+J (Toggle Terminal Focus) moves keyboard focus between the
+ *     terminal and the document editor without closing the panel
  *
  * Key decisions:
  *   - Deferred activation: xterm is not initialized until the panel is first
@@ -36,6 +38,8 @@
  * @coordinates-with TerminalTabBar.tsx — session switching and management
  * @coordinates-with TerminalSearchBar.tsx — inline search within terminal output
  * @coordinates-with TerminalContextMenu.tsx — right-click copy/paste/clear/reset-display menu
+ * @coordinates-with services/terminal/toggleTerminalFocus.ts — dispatches the
+ *   "terminal:focus-request" event this component listens for
  * @module components/Terminal/TerminalPanel
  */
 import { useRef, useEffect, useState, useCallback, type RefObject, type MutableRefObject } from "react";
