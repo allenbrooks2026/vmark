@@ -15,7 +15,8 @@
  * State:
  *   - composing/started/startLen — the composition cycle and its textarea
  *     snapshot. `started` guards an ORPHAN compositionend (fcitx5/rime
- *     #659/#948) from trusting a stale snapshot.
+ *     #659/#948) from trusting a stale snapshot; the orphan's own e.data is
+ *     still committed, ASCII included (#1375), unless xterm wrote it.
  *   - echoText — the text just committed; an insert restating it within the
  *     same macrotask is the IME echoing the commit, not a fresh keystroke.
  *     The HOST clears it on the next macrotask (`clearEcho`) — timers are an
@@ -123,12 +124,21 @@ export function createImeGateMachine(): ImeGateMachine {
       const textareaDiff = wasStarted ? textareaValue.slice(startLen) : "";
       started = false;
       let text = resolveCommit({ eventData, textareaDiff });
-      // A REAL composition result must be committed even when ASCII — T2
-      // blocked xterm's keydown path, so nothing else delivers it (D3.1).
-      // Gated on e.data being NON-EMPTY: empty data is a CANCELLED composition
-      // (Escape), and the textarea still holds the preedit at that instant —
-      // falling back to the diff typed the raw pinyin into the shell.
-      if (!text && wasStarted && eventData) text = eventData;
+      // A composition result must be committed even when ASCII — T2 blocked
+      // xterm's keydown path, so nothing else delivers it (D3.1). Gated on
+      // e.data being NON-EMPTY: empty data is a CANCELLED composition (Escape),
+      // and the textarea still holds the preedit at that instant — falling back
+      // to the diff typed the raw pinyin into the shell.
+      //
+      // An ORPHAN end qualifies too (#1375). WebKitGTK + fcitx5 never fires
+      // compositionstart, so every commit arrives as an orphan end — including
+      // the raw Latin text Rime's Enter confirms — and the insert before it is
+      // `insertFromComposition`, which neither input() nor xterm takes. With no
+      // composition behind it, an orphan end answers input()'s ownership
+      // question: skip it only when xterm's keydown path already wrote this
+      // keystroke. The claim is read, not spent, so a paired insert that is
+      // still coming stays dropped too.
+      if (!text && eventData && (wasStarted || !externalWrote)) text = eventData;
       // T3: always clear so xterm's setTimeout(0) finalizer reads "".
       if (text && !isEcho(text)) {
         return committed(text, { clearTextarea: true, stopEvent: false });

@@ -73,11 +73,11 @@ describe("setupImeCompositionGate — commit decisions", () => {
     expect(commits).toEqual(["你好"]);
   });
 
-  it("orphan compositionend (no start) ignores a stale textarea, commits only non-ASCII e.data (F2)", () => {
+  it("orphan compositionend (no start) ignores a stale textarea, commits only e.data (F2)", () => {
     const { textarea, commits } = makeHarness();
     textarea.value = "stale pasted text"; // never part of a composition
-    fireComposition(textarea, "compositionend", "?"); // ASCII e.data, no start
-    expect(commits).toEqual([]); // must NOT commit the stale textarea
+    fireComposition(textarea, "compositionend", "?"); // e.data, no start
+    expect(commits).toEqual(["?"]); // the event's own text — never the stale textarea
   });
 
   it("orphan compositionend commits fresh non-ASCII e.data (fcitx5/rime fresh commit)", () => {
@@ -96,11 +96,10 @@ describe("setupImeCompositionGate — commit decisions", () => {
     expect(commits).toEqual(["abc"]);
   });
 
-  it("still ignores ASCII from an ORPHAN compositionend (no real composition)", () => {
-    // The D3.1 fallback is gated on a real compositionstart; an orphan ASCII end
-    // must NOT commit (would inject stale/garbage — F2).
+  it("commits nothing for an orphan compositionend with empty data", () => {
     const { textarea, commits } = makeHarness();
-    fireComposition(textarea, "compositionend", "abc"); // no start
+    textarea.value = "stale";
+    fireComposition(textarea, "compositionend", ""); // no start, no data
     expect(commits).toEqual([]);
   });
 
@@ -141,6 +140,102 @@ describe("setupImeCompositionGate — commit decisions", () => {
     handle.noteExternalWrite("a");
     fireInput(textarea, "a");
     expect(commits).toEqual([]);
+  });
+});
+
+// #1375. WebKitGTK + fcitx5 never fires compositionstart (#948's instrumented
+// trace), so EVERY commit is an orphan end. WebKit's Editor::setComposition
+// inserts the confirmed text as `insertFromComposition` with isComposing=true,
+// THEN dispatches compositionend — no start guard. Rime's Enter commits the raw
+// Latin preedit through exactly that path; dropping ASCII orphans lost it while
+// CJK commits got through, and nothing else carries it: the insert is not
+// `insertText`, so neither the gate's input path nor xterm's _inputEvent takes it.
+describe("setupImeCompositionGate — WebKitGTK orphan commits (#1375)", () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+    document.body.innerHTML = "";
+  });
+  afterEach(() => vi.useRealTimers());
+
+  /** The event sequence WebKitGTK produces for one fcitx5 commit. */
+  function fireWebKitGtkCommit(ta: HTMLTextAreaElement, text: string) {
+    ta.value += text;
+    ta.dispatchEvent(
+      new InputEvent("input", {
+        data: text,
+        inputType: "insertFromComposition",
+        isComposing: true,
+        bubbles: true,
+      }),
+    );
+    fireComposition(ta, "compositionend", text);
+  }
+
+  it("commits raw Latin text that Rime's Enter confirms", () => {
+    const { textarea, commits } = makeHarness();
+    fireImeKeydown(textarea); // the Enter the IME consumed
+    fireWebKitGtkCommit(textarea, "claude");
+    expect(commits).toEqual(["claude"]);
+  });
+
+  it("commits raw pinyin confirmed with Enter", () => {
+    const { textarea, commits } = makeHarness();
+    fireWebKitGtkCommit(textarea, "nihao");
+    expect(commits).toEqual(["nihao"]);
+  });
+
+  it("commits a CJK commit exactly once through the same sequence (#948)", () => {
+    const { textarea, commits } = makeHarness();
+    fireWebKitGtkCommit(textarea, "你好");
+    expect(commits).toEqual(["你好"]);
+  });
+
+  it("clears the textarea so xterm's composition finalizer reads nothing", () => {
+    const { textarea } = makeHarness();
+    fireWebKitGtkCommit(textarea, "claude");
+    expect(textarea.value).toBe("");
+  });
+
+  it("commits the same word again when it is confirmed in a later task", () => {
+    const { textarea, commits } = makeHarness();
+    fireWebKitGtkCommit(textarea, "ls");
+    vi.advanceTimersByTime(1);
+    fireWebKitGtkCommit(textarea, "ls");
+    expect(commits).toEqual(["ls", "ls"]);
+  });
+
+  it("does not re-commit an orphan end re-fired in the same task", () => {
+    const { textarea, commits } = makeHarness();
+    fireWebKitGtkCommit(textarea, "claude");
+    fireComposition(textarea, "compositionend", "claude");
+    expect(commits).toEqual(["claude"]);
+  });
+
+  it("does not double a character xterm's keydown path already wrote", () => {
+    const { textarea, handle, commits } = makeHarness();
+    firePlainKeydown(textarea, "a", 65);
+    handle.noteExternalWrite("a"); // xterm forwarded this keystroke
+    fireComposition(textarea, "compositionend", "a");
+    expect(commits).toEqual([]);
+  });
+
+  it("commits once the previous keystroke's write claim has expired", () => {
+    const { textarea, handle, commits } = makeHarness();
+    handle.noteExternalWrite("a");
+    vi.advanceTimersByTime(1); // a different task: that write cannot own this commit
+    fireWebKitGtkCommit(textarea, "claude");
+    expect(commits).toEqual(["claude"]);
+  });
+
+  it("still lets a real composition commit ASCII while xterm holds a claim", () => {
+    // A STARTED composition's result is the IME's by construction (D3.1); the
+    // write claim only arbitrates inserts with no composition behind them.
+    const { textarea, handle, commits } = makeHarness();
+    fireComposition(textarea, "compositionstart");
+    handle.noteExternalWrite("a");
+    textarea.value = "abc";
+    fireComposition(textarea, "compositionend", "abc");
+    expect(commits).toEqual(["abc"]);
   });
 });
 
