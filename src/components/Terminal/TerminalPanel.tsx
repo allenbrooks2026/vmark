@@ -47,6 +47,7 @@ import { getCurrentWindowLabel } from "@/services/persistence/workspaceStorage";
 import { maybeAutoCreateTerminalSession } from "@/services/terminal/maybeAutoCreateTerminalSession";
 import { realignTerminalActiveToVisible } from "@/services/terminal/visibleTerminalSessions";
 import { removeTerminalSessionWithPanelPolicy } from "@/services/terminal/closeTerminalSession";
+import { TERMINAL_FOCUS_REQUEST_EVENT } from "@/services/terminal/toggleTerminalFocus";
 import { useVisibleTerminalSessions } from "./useVisibleTerminalSessions";
 import { useTerminalSessions } from "./useTerminalSessions";
 import { useTerminalResize } from "./useTerminalResize";
@@ -124,6 +125,21 @@ export function TerminalPanel() {
   // played out, and it never sees a cross-axis change (a right panel's width is
   // untouched by a window height resize). The observer covers both.
   useTerminalAutoFit(containerRef, fit, activated);
+
+  // Toggle Terminal Focus (Mod-Shift-j) asks the terminal to take focus
+  // without going through a visibility change. This listener is the only
+  // bridge back into the live xterm instance for that command: getActiveTerminal
+  // is a hook-local closure the command handler (outside React) cannot reach,
+  // so toggleTerminalFocus signals via a DOM event instead of new Zustand
+  // state (mirrors uiStore/searchSlice.ts's "search:replace-current").
+  useEffect(() => {
+    const handleFocusRequest = () => {
+      if (!visible) return;
+      getActiveTerminal()?.term.focus();
+    };
+    window.addEventListener(TERMINAL_FOCUS_REQUEST_EVENT, handleFocusRequest);
+    return () => window.removeEventListener(TERMINAL_FOCUS_REQUEST_EVENT, handleFocusRequest);
+  }, [visible, getActiveTerminal]);
 
   // Track resizing state to suppress CSS transitions during drag
   const [isResizing, setIsResizing] = useState(false);

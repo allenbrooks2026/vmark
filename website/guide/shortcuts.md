@@ -339,6 +339,7 @@ When the integrated terminal is focused:
 | Action | Shortcut |
 |--------|----------|
 | Toggle Terminal | `` Ctrl + ` `` |
+| Toggle Terminal Focus | `Mod + Shift + J` |
 | Copy | `Mod + C` (with selection) |
 | Paste | `Mod + V` |
 | Clear | `Mod + K` |

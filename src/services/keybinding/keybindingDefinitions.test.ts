@@ -92,6 +92,16 @@ describe("KEYBINDINGS — view shortcut migration (WI-3.2)", () => {
     expect(term.when).toBeUndefined(); // no input guard → runs even in an input
   });
 
+  it("the terminal focus toggle also fires everywhere, including inputs (no suppression)", () => {
+    // Same rationale as toggleTerminal above: it must work from INSIDE the
+    // terminal (an "input"-like scope) to move focus back to the editor.
+    const b = byShortcut("toggleTerminalFocus");
+    expect(b.kind).toBe("command");
+    expect(b.kind === "command" && b.commandId).toBe("view.toggleTerminalFocus");
+    expect(b.when).toBeUndefined();
+    expect(b.ime).toBe("chord-exempt");
+  });
+
   it("the 3 global overlays are present and IME-blocked", () => {
     for (const id of ["commandPalette", "contentSearch", "quickOpen"]) {
       const b = byShortcut(id);
@@ -100,11 +110,11 @@ describe("KEYBINDINGS — view shortcut migration (WI-3.2)", () => {
     }
   });
 
-  it("has the 11 global + 5 native + 18 view + 2 explorer + 1 containment bindings", () => {
+  it("has the 11 global + 5 native + 19 view + 2 explorer + 1 containment bindings", () => {
     // The second native binding is `lastUsedTab` (WI-TNAV2.3, D7): a DOM
     // binding is dead while the embedded WKWebView browser holds first
     // responder, so the native menu accelerator owns the chord.
-    expect(KEYBINDINGS).toHaveLength(37);
+    expect(KEYBINDINGS).toHaveLength(38);
   });
 
   it("owns lastUsedTab natively, not through the window DOM router", () => {

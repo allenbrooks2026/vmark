@@ -52,6 +52,7 @@ vi.mock("@tauri-apps/plugin-clipboard-manager", () => ({
 }));
 
 import { TerminalPanel } from "./TerminalPanel";
+import { TERMINAL_FOCUS_REQUEST_EVENT } from "@/services/terminal/toggleTerminalFocus";
 import { resetTerminalSessionStore, useUIStore } from "@/stores/uiStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useWorkspaceInstancesStore } from "@/stores/workspaceInstancesStore";
@@ -250,5 +251,56 @@ describe("TerminalPanel — rail-mode toggle realigns and auto-creates (R2-15)",
     const created = terminal.sessions.find((s) => s.workspaceInstanceId === "wsi-a");
     expect(created).toBeDefined();
     expect(terminal.activeSessionId).toBe(created?.id);
+  });
+});
+
+describe("TerminalPanel — Toggle Terminal Focus event (Mod-Shift-j)", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    useUIStore.setState({
+      terminalVisible: true,
+      terminalHeight: 200,
+      terminalWidth: 300,
+      effectiveTerminalPosition: "bottom",
+    } as Partial<ReturnType<typeof useUIStore.getState>> as never);
+    mockUseTerminalSessions.mockReturnValue({
+      fit: mockFit,
+      getActiveTerminal: mockGetActiveTerminal,
+      getActiveSearchAddon: vi.fn(() => null),
+      restartActiveSession: vi.fn(),
+    });
+  });
+
+  it("focuses the active xterm instance when the panel is visible", () => {
+    const focus = vi.fn();
+    mockGetActiveTerminal.mockReturnValue({
+      term: { focus } as unknown as Terminal,
+      ptyRef: { current: null },
+      resetDisplay: vi.fn(),
+    });
+    render(<TerminalPanel />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(TERMINAL_FOCUS_REQUEST_EVENT));
+    });
+
+    expect(focus).toHaveBeenCalledTimes(1);
+  });
+
+  it("does nothing when the panel is hidden", () => {
+    useUIStore.setState({ terminalVisible: false });
+    const focus = vi.fn();
+    mockGetActiveTerminal.mockReturnValue({
+      term: { focus } as unknown as Terminal,
+      ptyRef: { current: null },
+      resetDisplay: vi.fn(),
+    });
+    render(<TerminalPanel />);
+
+    act(() => {
+      window.dispatchEvent(new CustomEvent(TERMINAL_FOCUS_REQUEST_EVENT));
+    });
+
+    expect(focus).not.toHaveBeenCalled();
   });
 });

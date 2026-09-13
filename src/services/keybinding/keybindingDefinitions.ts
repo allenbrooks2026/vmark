@@ -60,6 +60,9 @@ function viewBinding(
  */
 const VIEW_BINDINGS: Binding[] = [
   viewBinding("toggleTerminal", "view.toggleTerminal", { suppressInInput: false }),
+  // Moves focus rather than opening/closing (toggleTerminalFocus.ts), so it
+  // must fire from inside the terminal too, same as toggleTerminal above.
+  viewBinding("toggleTerminalFocus", "view.toggleTerminalFocus", { suppressInInput: false }),
   viewBinding("sourceMode", "view.toggleSourceMode", { suppressInInput: true }),
   viewBinding("focusMode", "view.toggleFocusMode", { suppressInInput: true }),
   viewBinding("typewriterMode", "view.toggleTypewriterMode", { suppressInInput: true }),

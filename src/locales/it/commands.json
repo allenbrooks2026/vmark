@@ -48,6 +48,7 @@
   "view.toggleFitTables": "Adatta tabelle alla larghezza",
   "view.toggleReadOnly": "Attiva/disattiva sola lettura",
   "view.toggleTerminal": "Attiva/disattiva terminale",
+  "view.toggleTerminalFocus": "Attiva/disattiva il focus del terminale",
   "view.zoomActual": "Dimensione effettiva",
   "view.zoomIn": "Ingrandisci",
   "view.zoomOut": "Riduci",

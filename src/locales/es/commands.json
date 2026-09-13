@@ -48,6 +48,7 @@
   "view.toggleFitTables": "Ajustar tablas al ancho",
   "view.toggleReadOnly": "Alternar solo lectura",
   "view.toggleTerminal": "Alternar terminal",
+  "view.toggleTerminalFocus": "Alternar el foco del terminal",
   "view.zoomActual": "Tamaño real",
   "view.zoomIn": "Acercar",
   "view.zoomOut": "Alejar",

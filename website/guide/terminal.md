@@ -54,10 +54,13 @@ These shortcuts work when the terminal panel is focused:
 | Select all terminal output | `Mod + A` |
 | Switch to session 1 … 5 | `Mod + 1` … `Mod + 5` |
 | Toggle Terminal | `` Ctrl + ` `` |
+| Toggle Terminal Focus | `Mod + Shift + J` |
 | Previous command prompt | `Mod + ↑` |
 | Next command prompt | `Mod + ↓` |
 
 When the terminal is focused, `Mod + =` / `-` / `0` zoom the **terminal** font (set separately in Terminal settings), not the editor font, and `Mod + F` opens the **terminal** search rather than the editor's find bar.
+
+**Toggle Terminal Focus:** `Mod + Shift + J` switches keyboard focus between the terminal and the editor without closing the panel. If the terminal is hidden, it opens and focuses it — same as `` Ctrl + ` ``. If it's already open, this key just moves focus back and forth, so you can keep it visible while you work.
 
 Prompt navigation (`Mod + ↑` / `Mod + ↓`) requires shell integration — see [Shell integration](#shell-integration) below.
 
