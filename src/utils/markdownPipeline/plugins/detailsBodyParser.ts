@@ -31,6 +31,7 @@ import remarkParse from "remark-parse";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkFrontmatter from "remark-frontmatter";
+import { remarkInlineFastPaths } from "../parser/fastPaths/remarkInlineFastPaths";
 import { remarkDepthLimit } from "../parser/remarkPlugins";
 import { remarkCustomInline } from "./customInline";
 import { remarkResolveReferences } from "./resolveReferences";
@@ -61,6 +62,7 @@ function buildDefaultBodyProcessor(): DetailsBodyProcessor {
   return unified()
     .use(remarkParse)
     .use(remarkGfm, { singleTilde: false })
+    .use(remarkInlineFastPaths)
     .use(remarkMath)
     .use(remarkDepthLimit)
     .use(remarkFrontmatter, ["yaml"])

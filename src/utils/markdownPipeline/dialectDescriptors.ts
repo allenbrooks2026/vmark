@@ -56,6 +56,7 @@ import {
   remarkDepthLimit,
   type ContentAnalysis,
 } from "./parser/remarkPlugins";
+import { remarkInlineFastPaths } from "./parser/fastPaths/remarkInlineFastPaths";
 
 /**
  * The parse dialects. Each answers a different question, so each runs a
@@ -135,6 +136,13 @@ export const DIALECT: readonly PluginDescriptor[] = [
       "Tables, task lists, strikethrough, autolinks. `singleTilde: false` in " +
       "every mode, or `~x~` would become deletion in one dialect and subscript " +
       "in another for the same text.",
+  },
+  {
+    name: "remarkInlineFastPaths",
+    plugin: remarkInlineFastPaths,
+    modes: { document: "always", "source-position": "always", "details-body": "always", "inline-summary": "always" },
+    reason: "Linear-time `]`, backtick and emphasis closers that cannot match (#1407). Tree-identical, " +
+      "so every mode. Right after GFM: its emphasis wrapper must sit directly behind micromark's own.",
   },
   {
     name: "remarkDisableSetextHeadings",
