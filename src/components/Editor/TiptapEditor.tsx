@@ -213,7 +213,7 @@ export function TiptapEditorInner({ hidden = false, readOnly = false, preview = 
           // fresh value now — otherwise the external-sync effect (gated on
           // editorInitialized) already skipped it and would not refire until
           // the next content change.
-          if (contentRef.current !== contentSnapshot) {
+          if (contentRef.current !== contentSnapshot && !hiddenRef.current) { // hidden: synced when shown
             syncMarkdownToEditor(
               editor, contentRef.current, lastExternalContent, preserveLineBreaksRef.current, activeTabId,
             );

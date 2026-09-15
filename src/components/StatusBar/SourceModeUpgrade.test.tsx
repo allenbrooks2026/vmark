@@ -50,10 +50,29 @@ describe("SourceModeUpgrade", () => {
     ).toBeInTheDocument();
   });
 
-  it("clicking the action clears the marker but does NOT touch global sourceMode", async () => {
+  it("clicking the action lifts the marker and leaves a WYSIWYG window in WYSIWYG", async () => {
     const user = userEvent.setup();
     setActiveTab("tab-1");
+    useDocumentStore.getState().initDocument("tab-1", "# notes", "/repo/notes.md");
     useLargeFileSessionStore.getState().markForcedSource("tab-1");
+
+    render(<SourceModeUpgrade />);
+    await user.click(
+      screen.getByRole("button", { name: /largeFile\.switchToWysiwygAria/i })
+    );
+
+    expect(useLargeFileSessionStore.getState().isForcedSource("tab-1")).toBe(false);
+    expect(useUIStore.getState().sourceMode).toBe(false);
+  });
+
+  it("clicking the action SWITCHES even when the window itself is in Source mode (#1407)", async () => {
+    // Lifting only the marker used to leave global Source mode on, so the tab
+    // stayed in Source and the button did nothing visible. Audit repro: refuse
+    // a document, turn Source mode on from another tab, come back, click.
+    const user = userEvent.setup();
+    setActiveTab("tab-1");
+    useDocumentStore.getState().initDocument("tab-1", "# notes", "/repo/notes.md");
+    useLargeFileSessionStore.getState().markForcedSource("tab-1", "unparseable");
     useUIStore.getState().setSourceMode(true);
 
     render(<SourceModeUpgrade />);
@@ -61,9 +80,8 @@ describe("SourceModeUpgrade", () => {
       screen.getByRole("button", { name: /largeFile\.switchToWysiwygAria/i })
     );
 
-    // Global sourceMode is preserved — only the tab's override is lifted.
-    expect(useUIStore.getState().sourceMode).toBe(true);
     expect(useLargeFileSessionStore.getState().isForcedSource("tab-1")).toBe(false);
+    expect(useUIStore.getState().sourceMode).toBe(false);
   });
 
   it("says a refused document is in Source mode because WYSIWYG cannot show it, not because it is large", () => {

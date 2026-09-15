@@ -454,6 +454,31 @@ describe("syncMarkdownToEditor — via onCreate", () => {
 
     expect(mocks.reportUnparseableDocument).not.toHaveBeenCalled();
   });
+
+  it("does not report a refused content DRIFT from a hidden editor either (#1407, audit round 2)", () => {
+    // The first parse succeeds, the document changes before the deferred work
+    // runs, and the drift re-sync is refused — while the editor is still hidden.
+    const editor = createMockEditor();
+    mocks.useEditor.mockReturnValue(editor);
+    mocks.getTiptapEditorView.mockReturnValue(null);
+    mocks.reportUnparseableDocument.mockReset();
+    mocks.parseMarkdown
+      .mockImplementationOnce(() => ({ type: "doc", content: [] }))
+      .mockImplementationOnce(() => { throw new Error("refused drift"); });
+    mocks.useDocumentContent.mockReturnValue("initial");
+
+    const { rerender } = render(<TiptapEditorInner hidden={true} />);
+    const config = mocks.useEditor.mock.calls[mocks.useEditor.mock.calls.length - 1][0];
+    vi.useFakeTimers();
+    config.onCreate({ editor });
+    mocks.useDocumentContent.mockReturnValue("> refused");
+    rerender(<TiptapEditorInner hidden={true} />);
+    vi.runAllTimers();
+    vi.useRealTimers();
+    mocks.useDocumentContent.mockReturnValue("# hello");
+
+    expect(mocks.reportUnparseableDocument).not.toHaveBeenCalled();
+  });
 });
 
 // ── flushToStore coverage ───────────────────────────────────────────

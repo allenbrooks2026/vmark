@@ -18,7 +18,7 @@
  *     already toggled back to WYSIWYG manually, suppress the offer).
  *
  * @coordinates-with stores/documentStore/largeFileSession.ts — reads the marker set.
- * @coordinates-with stores/editorStore.ts — flips sourceMode on click.
+ * @coordinates-with services/history/unifiedHistory.ts — the mode toggle, when the window is in Source mode.
  * @coordinates-with stores/tabStore.ts — reads activeTabId via useTabStore.
  * @coordinates-with stores/documentStore.ts — reads filePath for YAML check.
  * @module components/StatusBar/SourceModeUpgrade
@@ -29,6 +29,8 @@ import { useTranslation } from "react-i18next";
 import { useTabStore } from "@/stores/tabStore";
 import { useLargeFileSessionStore } from "@/stores/documentStore";
 import { useDocumentStore } from "@/stores/documentStore";
+import { useUIStore } from "@/stores/uiStore";
+import { toggleSourceModeWithCheckpoint } from "@/services/history/unifiedHistory";
 import { isYamlFileName } from "@/utils/dropPaths";
 import { useWindowLabel } from "@/contexts/WindowContext";
 
@@ -50,14 +52,18 @@ export function SourceModeUpgrade() {
     ? isYamlFileName(activeFilePath.split(/[\\/]/).pop() ?? "")
     : false;
 
-  // The "Switch to WYSIWYG" action clears only this tab's forced-source
-  // marker. The Editor treats the marker as a per-tab override layered on
-  // top of the window-global sourceMode, so other tabs in the same window
-  // keep their mode. Global sourceMode is not flipped.
+  // The "Switch to WYSIWYG" action clears this tab's forced-source marker —
+  // a per-tab override layered on top of the window-global sourceMode. If the
+  // window is ALSO in Source mode (turned on from another tab, say), lifting
+  // the marker alone switches nothing, so the button did nothing visible
+  // (#1407 audit). The ordinary mode toggle then turns the window's Source
+  // mode off, with its checkpoint and per-tab mode record; other tabs keep
+  // their own mode through that record when they are next shown.
   const handleUpgrade = useCallback(() => {
     if (!activeTabId) return;
     useLargeFileSessionStore.getState().clearForcedSource(activeTabId);
-  }, [activeTabId]);
+    if (useUIStore.getState().sourceMode) toggleSourceModeWithCheckpoint(windowLabel);
+  }, [activeTabId, windowLabel]);
 
   if (!isForcedSource) return null;
   // YAML files are forced-source for correctness, not size. Switching
