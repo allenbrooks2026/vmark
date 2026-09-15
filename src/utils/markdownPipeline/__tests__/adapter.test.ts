@@ -244,9 +244,14 @@ describe("serializeMarkdown", () => {
       expect(result).toContain("Parent text");
       // Should still be a list
       expect(result).toMatch(/^- /m);
-      // Should NOT have a blank line between parent text and nested item
-      // (normalizeBareListMarkers inserts one for parsing, but spread fix removes it)
-      expect(result).not.toMatch(/Parent text\n\n/);
+      // The blank line CommonMark §5.2 requires before an empty item that
+      // follows a paragraph. VMark's parser inserts it itself on input
+      // (normalizeBareListMarkers), which is why the tight spelling used to
+      // round-trip here, but a CommonMark reader does not: markdown-it renders
+      // `- Parent text\n  -` as `<h2>Parent text</h2>`. The serializer now
+      // writes it (listInterruptJoin.ts), and the result is stable.
+      expect(result).toBe("- Parent text\n\n  -\n");
+      expect(serializeMarkdown(schema, parseMarkdown(schema, result))).toBe(result);
     });
   });
 });

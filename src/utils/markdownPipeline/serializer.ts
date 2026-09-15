@@ -19,11 +19,15 @@
  *     exact same mdast as the conservative output, so it can never change
  *     document meaning (audit H6/H7).
  *   - hardBreakStyle option converts `\` breaks to two-space breaks
- *   - join re-emits captured blank-line runs (blankLinesJoin, ADR-1a)
+ *   - join re-emits captured blank-line runs (blankLinesJoin, ADR-1a), and
+ *     keeps a list that cannot interrupt a paragraph off its last line
+ *     (listInterruptJoin, CommonMark §5.2)
  *
  * @coordinates-with parser.ts — plugins must match between parser and serializer
  * @coordinates-with adapter.ts — wraps this with error handling
  * @coordinates-with serializerHandlers.ts — custom image/link to-markdown handlers
+ * @coordinates-with serializerAttention.ts — emphasis/strong/delete handlers
+ * @coordinates-with listInterruptJoin.ts — blank line before a non-interrupting list
  * @module utils/markdownPipeline/serializer
  */
 
@@ -36,6 +40,7 @@ import remarkFrontmatter from "remark-frontmatter";
 import type { Root } from "mdast";
 import { remarkCustomInline, remarkDetailsBlock, remarkWikiLinks, tocToMarkdown } from "./plugins";
 import { handleImage, handleLink, blankLinesJoin } from "./serializerHandlers";
+import { listInterruptJoin } from "./listInterruptJoin";
 import type { MarkdownPipelineOptions } from "./types";
 import { parseMarkdownToMdast } from "./parser";
 import { applyCosmeticPass } from "./serializerCosmetics";
@@ -80,7 +85,9 @@ function buildSerializer() {
         delete: handleDelete,
         ...tocToMarkdown.handlers,
       } as Record<string, unknown>,
-      join: [blankLinesJoin], // re-emit captured blank-line runs (ADR-1a)
+      // Joins are consulted last-first: listInterruptJoin can raise a captured
+      // blank-line run (ADR-1a) that CommonMark would read as paragraph text.
+      join: [blankLinesJoin, listInterruptJoin],
     } as Parameters<typeof remarkStringify>[0])
     .use(remarkGfm, {
       singleTilde: false, // Match parser config

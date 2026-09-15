@@ -236,7 +236,7 @@ export const handleLink = Object.assign(linkHandler, {
  */
 export function blankLinesJoin(
   _left: unknown,
-  right: { data?: { blankLinesBefore?: unknown } },
+  right: { data?: { blankLinesBefore?: unknown } | undefined },
 ): number | undefined {
   const n = right?.data?.blankLinesBefore;
   // Only a finite integer in the captured range is a valid separator count;
