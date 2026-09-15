@@ -1,21 +1,22 @@
 /**
  * Undo restores the document it recorded, and the undo history stays usable.
  *
- * Tiptap's core `clearDocument` plugin turns a document emptied by
- * "select everything, then delete" back into a plain paragraph. It keys on the
- * OLD selection covering the whole document and the NEW document being empty,
- * so an UNDO taken with the text fully selected qualifies too, whenever it
- * leaves an empty list item or heading behind. The plugin then lifted that
- * item in an appended transaction.
+ * prosemirror-history files a transaction APPENDED to an undo in the redo
+ * branch without remapping what remains in the undo branch, so a plugin that
+ * rewrites the document in response to an undo leaves the next undo replaying
+ * steps recorded for a document that no longer exists. Two did:
  *
- * prosemirror-history files a transaction appended to an undo in the REDO
- * branch without remapping what remains in the undo branch. The next undo
- * applied steps recorded for a document that no longer existed and threw
- * `RangeError: Position 6 out of range` — found by the soak's editing fuzz
- * (#1407, seed 4). Before it threw, the first undo had already produced a
- * document that never existed: a paragraph where the empty list item was.
+ *   - Tiptap core's `clearDocument` turns an emptied, fully selected document
+ *     back into a paragraph, and lifted the empty list item an undo restored.
+ *     The next undo threw `RangeError: Position 6 out of range` — found by the
+ *     soak's editing fuzz (#1407, seed 4).
+ *   - Footnote cleanup deletes a definition whose last reference was removed,
+ *     and deleted it when an undo removed the reference: `Position 18`.
+ *
+ * In both, the first undo had already shown a document that never existed.
  */
 import { afterEach, describe, expect, it } from "vitest";
+import { closeHistory } from "@tiptap/pm/history";
 import { Selection } from "@tiptap/pm/state";
 import { createTypingSession, type TypingSession } from "@/test/typingHarness";
 
@@ -88,9 +89,62 @@ describe("undo with the whole document selected", () => {
   });
 });
 
-// The guard is scoped to history transactions: the case clearDocument exists
-// for must keep working.
-describe("select everything, then delete", () => {
+// The same mechanism through a second plugin: footnote cleanup deletes a
+// definition whose last reference an edit removed, and an UNDO that removes a
+// reference is such an edit. Found by the branch's cross-model audit, which is
+// why the guard refuses every document change appended to a history
+// transaction instead of opting one plugin out.
+describe("undo that removes a footnote reference", () => {
+  function editDefinitionThenAddReference(): TypingSession {
+    const s = createTypingSession({ markdown: "Text here.\n\n[^1]: note\n" });
+    // Loading is itself a history event; close it so the edit below is not
+    // grouped with the load, as it would not be for a user typing later.
+    s.editor.view.dispatch(closeHistory(s.editor.state.tr));
+    let definitionTextEnd = -1;
+    s.editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "footnote_definition") definitionTextEnd = pos + node.nodeSize - 2;
+    });
+    s.setCursor(definitionTextEnd);
+    s.type("x");
+    const reference = s.editor.schema.nodes.footnote_reference.create({ label: "1" });
+    // Away from the definition, so history records it as a separate event.
+    s.editor.view.dispatch(s.editor.state.tr.insert(5, reference));
+    return s;
+  }
+
+  const hasDefinition = (s: TypingSession): boolean => blockTypes(s).includes("footnote_definition");
+
+  it("keeps the definition the document had before the reference", () => {
+    session = editDefinitionThenAddReference();
+    session.undo();
+    expect(hasDefinition(session)).toBe(true);
+    expect(session.editor.state.doc.textContent).toBe("Text here.notex");
+  });
+
+  it("undoes the definition edit too, without throwing", () => {
+    session = editDefinitionThenAddReference();
+    session.undo();
+    expect(() => session?.undo()).not.toThrow();
+    expect(session.editor.state.doc.textContent).toBe("Text here.note");
+    expect(hasDefinition(session)).toBe(true);
+    // The rest of the history (the harness's own load) still applies.
+    expect(() => undoAll(session as TypingSession)).not.toThrow();
+  });
+});
+
+// The guard is scoped to history transactions: the normalizations it keeps
+// off an undo must still run on the user edits they exist for.
+describe("normalizers on ordinary edits", () => {
+  it("still deletes a definition when the user deletes its only reference", () => {
+    session = createTypingSession({ markdown: "Text[^1] here.\n\n[^1]: note\n" });
+    let referenceAt = -1;
+    session.editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "footnote_reference") referenceAt = pos;
+    });
+    session.editor.view.dispatch(session.editor.state.tr.delete(referenceAt, referenceAt + 1));
+    expect(blockTypes(session)).not.toContain("footnote_definition");
+  });
+
   it("still turns an emptied heading back into a paragraph", () => {
     session = createTypingSession({ markdown: "# Title\n" });
     selectAllText(session);
