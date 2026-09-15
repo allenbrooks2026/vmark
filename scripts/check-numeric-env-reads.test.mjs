@@ -11,7 +11,8 @@
  *
  * It walks a TypeScript AST rather than grepping, so an explanation of the
  * defect in a comment or a string — like the one above — is prose, not a
- * finding. Only files that mention `process.env` are parsed. Tracked and
+ * finding. It sees through parentheses, type assertions and `process["env"]`.
+ * Only files that mention `process` are parsed. Tracked and
  * untracked-not-ignored files are listed by `git ls-files`, so generated and
  * ignored trees cannot contribute.
  *
@@ -30,20 +31,39 @@ import ts from "typescript";
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const CONVERTERS = new Set(["Number", "parseInt", "parseFloat", "Number.parseInt", "Number.parseFloat"]);
 
-/** `a.b.c` for a chain of identifiers, or null for anything else. */
+/** `node` without the wrappers that do not change its value: parentheses and type assertions. */
+function unwrap(node) {
+  let current = node;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isSatisfiesExpression(current) ||
+    ts.isTypeAssertionExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
+}
+
+/** `a.b.c` for a chain of identifiers and string-keyed element accesses, or null. */
 function dottedName(node) {
-  if (ts.isIdentifier(node)) return node.text;
-  if (ts.isPropertyAccessExpression(node)) {
-    const left = dottedName(node.expression);
-    return left === null ? null : `${left}.${node.name.text}`;
+  const current = unwrap(node);
+  if (ts.isIdentifier(current)) return current.text;
+  if (ts.isPropertyAccessExpression(current)) {
+    const left = dottedName(current.expression);
+    return left === null ? null : `${left}.${current.name.text}`;
+  }
+  if (ts.isElementAccessExpression(current) && ts.isStringLiteralLike(current.argumentExpression)) {
+    const left = dottedName(current.expression);
+    return left === null ? null : `${left}.${current.argumentExpression.text}`;
   }
   return null;
 }
 
-/** Whether `node` reads `process.env.X` / `process.env["X"]`, possibly with a `??`/`||` default. */
+/** Whether `node` reads a variable off `process.env`, possibly with a `??`/`||` default. */
 function readsProcessEnv(node) {
-  let current = node;
-  while (ts.isParenthesizedExpression(current)) current = current.expression;
+  const current = unwrap(node);
   if (
     ts.isBinaryExpression(current) &&
     (current.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
@@ -58,10 +78,18 @@ function readsProcessEnv(node) {
   return false;
 }
 
+/** The parser dialect for a file: `<T>x` is a type assertion in `.ts` and JSX in `.tsx`. */
+function scriptKind(file) {
+  if (/\.[jt]sx$/.test(file)) return ts.ScriptKind.TSX;
+  if (/\.[mc]?ts$/.test(file)) return ts.ScriptKind.TS;
+  return ts.ScriptKind.JS;
+}
+
 /** `file:line` for every numeric conversion applied directly to an environment read. */
 function numericEnvReads(source, file) {
-  if (!source.includes("process.env")) return [];
-  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+  // A cheap filter that cannot hide a read: every form reaches the global `process`.
+  if (!/\bprocess\b/.test(source)) return [];
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
   const out = [];
   const visit = (node) => {
     const converted =
@@ -117,6 +145,12 @@ describe("SELF-TEST: the detector", () => {
     'const k = Number(process.env["KNOB"] || "3");',
     "const p = +process.env.PORT;",
     "const g = Number(globalThis.process.env.G);",
+    // Found by the branch's cross-model audit.
+    "const a = Number(process . env.X);",
+    'const b = Number(process["env"].X);',
+    "const c = Number(process.env.X as string);",
+    "const d = Number(process.env.X!);",
+    "const e = parseInt(<string>process.env.X, 10);",
   ])("flags %s", (line) => {
     expect(numericEnvReads(line, "x.ts")).toEqual(["x.ts:1"]);
   });

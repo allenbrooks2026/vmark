@@ -41,20 +41,48 @@ import { isMap, isPair, isScalar, parseDocument, visit } from "yaml";
 const REPO = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const DIR = path.join(REPO, ".github/workflows");
 
-/** An `inputs.<id>` read inside one `${{ … }}` expression. */
-const INPUT_READ = /\b(?:github\.event\.)?inputs\.[A-Za-z_][A-Za-z0-9_-]*/;
 const EXPRESSION = /\$\{\{([\s\S]*?)\}\}/g;
 const MARKER = /^\s*input-empty-ok:\s*(\S.*)?$/;
+/** A single-quoted expression string; `''` is an escaped quote. */
+const STRING_LITERAL = /'(?:[^']|'')*'/g;
+/** An input read, after string literals are masked: `inputs.x` or `inputs['x']`. */
+const INPUT_READ = /\b(?:github\.event\.)?inputs\s*(?:\.\s*[A-Za-z_][A-Za-z0-9_-]*|\[\s*@str\d+@\s*\])/g;
+/** The first `||` operand after a read: a masked literal, or any other token. */
+const FALLBACK = /\|\|\s*(?:@str(\d+)@|[^\s|)]+)/;
+
+/**
+ * An expression body with each string literal replaced by `@str<n>@`, so a
+ * literal that merely mentions `inputs.x` is not a read, and a bracket key
+ * (`inputs['x']`) or a fallback's emptiness can still be checked.
+ */
+function maskStrings(body) {
+  const literals = [];
+  const masked = body.replace(STRING_LITERAL, (literal) => {
+    literals.push(literal.slice(1, -1).replace(/''/g, "'"));
+    return `@str${literals.length - 1}@`;
+  });
+  return { masked, literals };
+}
 
 /** Every `${{ … }}` body in `text` that reads an input. */
 function inputExpressions(text) {
-  return [...text.matchAll(EXPRESSION)].map((m) => m[1]).filter((body) => INPUT_READ.test(body));
+  return [...text.matchAll(EXPRESSION)]
+    .map((match) => match[1])
+    .filter((body) => maskStrings(body).masked.match(INPUT_READ) !== null);
 }
 
-/** Whether an expression supplies a fallback after the input it reads. */
-function hasFallback(body) {
-  const read = INPUT_READ.exec(body);
-  return read !== null && /\|\|\s*\S/.test(body.slice(read.index + read[0].length));
+/**
+ * Whether every input read in `body` is followed by a fallback that is not the
+ * empty string. A fallback that is itself an input read is checked in its own
+ * turn, so `inputs.a || inputs.b` still needs `inputs.b` to fall back.
+ */
+function everyReadHasFallback(body) {
+  const { masked, literals } = maskStrings(body);
+  return [...masked.matchAll(INPUT_READ)].every((read) => {
+    const fallback = FALLBACK.exec(masked.slice(read.index + read[0].length));
+    if (fallback === null) return false;
+    return fallback[1] === undefined || literals[Number(fallback[1])] !== "";
+  });
 }
 
 /**
@@ -74,7 +102,7 @@ function findings(source, file) {
           if (!isPair(entry) || !isScalar(entry.value) || typeof entry.value.value !== "string") continue;
           const name = String(isScalar(entry.key) ? entry.key.value : "?");
           for (const body of inputExpressions(entry.value.value)) {
-            if (hasFallback(body)) continue;
+            if (everyReadHasFallback(body)) continue;
             const marker = MARKER.exec(entry.value.comment ?? "");
             if (marker && marker[1]) continue;
             out.push({
@@ -148,6 +176,26 @@ describe("SELF-TEST: the checker", () => {
   it("flags an input pasted into a run body, even with a fallback", () => {
     const run = `|\n          echo "\${{ inputs.version || 'v0' }}"`;
     expect(findings(wf("          A: plain", run), "t.yml")).toHaveLength(1);
+  });
+
+  // Found by the branch's cross-model audit.
+  it("flags bracket access to an input", () => {
+    expect(findings(wf("          S: ${{ inputs['fuzz_seed'] }}"), "t.yml")).toHaveLength(1);
+    expect(findings(wf("          S: ${{ github.event.inputs[ 'fuzz_seed' ] }}"), "t.yml")).toHaveLength(1);
+    expect(findings(wf("          S: ${{ inputs['fuzz_seed'] || '1' }}"), "t.yml")).toEqual([]);
+  });
+
+  it("does not count an empty fallback", () => {
+    expect(findings(wf("          S: ${{ inputs.fuzz_seed || '' }}"), "t.yml")).toHaveLength(1);
+  });
+
+  it("checks a fallback that is itself an input", () => {
+    expect(findings(wf("          S: ${{ inputs.a || inputs.b }}"), "t.yml")).toHaveLength(1);
+    expect(findings(wf("          S: ${{ inputs.a || inputs.b || 'c' }}"), "t.yml")).toEqual([]);
+  });
+
+  it("ignores `inputs.x` inside a string literal", () => {
+    expect(findings(wf("          S: ${{ format('see inputs.x') }}"), "t.yml")).toEqual([]);
   });
 
   it("ignores env values that read no input", () => {
