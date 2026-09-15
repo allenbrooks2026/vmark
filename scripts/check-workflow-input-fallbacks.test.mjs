@@ -22,6 +22,11 @@
  *      workflow-injection shape the repo's workflows already route through
  *      `env:` to avoid.
  *
+ * Expressions are PARSED (a small reader for the expression grammar), not
+ * matched: a fallback must protect the input it follows, `github['event']`
+ * and `INPUTS.x` are the same read, a comparison is never empty, and an
+ * expression the reader cannot parse is a finding, never a pass.
+ *
  * `with:` is out of scope deliberately: actions read inputs through
  * `core.getInput`, which already treats "" as not provided.
  *
@@ -43,45 +48,144 @@ const DIR = path.join(REPO, ".github/workflows");
 
 const EXPRESSION = /\$\{\{([\s\S]*?)\}\}/g;
 const MARKER = /^\s*input-empty-ok:\s*(\S.*)?$/;
-/** A single-quoted expression string; `''` is an escaped quote. */
-const STRING_LITERAL = /'(?:[^']|'')*'/g;
-/** An input read, after string literals are masked: `inputs.x` or `inputs['x']`. */
-const INPUT_READ = /\b(?:github\.event\.)?inputs\s*(?:\.\s*[A-Za-z_][A-Za-z0-9_-]*|\[\s*@str\d+@\s*\])/g;
-/** The first `||` operand after a read: a masked literal, or any other token. */
-const FALLBACK = /\|\|\s*(?:@str(\d+)@|[^\s|)]+)/;
+const TOKEN =
+  /\s*(?:('(?:[^']|'')*')|(\d+(?:\.\d+)?|0x[0-9a-fA-F]+)|([A-Za-z_][A-Za-z0-9_-]*)|(\|\||&&|==|!=|<=|>=|[()[\].,!<>*]))/y;
+/** Functions whose result is a boolean, and so never an empty string. */
+const BOOLEAN_FUNCTIONS = new Set(["contains", "startswith", "endswith", "success", "failure", "always", "cancelled"]);
 
 /**
- * An expression body with each string literal replaced by `@str<n>@`, so a
- * literal that merely mentions `inputs.x` is not a read, and a bracket key
- * (`inputs['x']`) or a fallback's emptiness can still be checked.
+ * Parse one GitHub Actions expression body into a small AST:
+ * `lit`, `ref` (a lowercase property path; a computed key becomes `*`),
+ * `call`, `or`, `and`, and `bool` for comparisons and negation.
+ * Throws on anything it cannot read, so an unparseable expression is a finding
+ * rather than a pass.
  */
-function maskStrings(body) {
-  const literals = [];
-  const masked = body.replace(STRING_LITERAL, (literal) => {
-    literals.push(literal.slice(1, -1).replace(/''/g, "'"));
-    return `@str${literals.length - 1}@`;
-  });
-  return { masked, literals };
+function parseExpression(body) {
+  const tokens = [];
+  TOKEN.lastIndex = 0;
+  while (TOKEN.lastIndex < body.length && body.slice(TOKEN.lastIndex).trim() !== "") {
+    const at = TOKEN.lastIndex;
+    const m = TOKEN.exec(body);
+    if (!m) throw new Error(`unexpected character at ${at}`);
+    if (m[1] !== undefined) tokens.push({ kind: "str", value: m[1].slice(1, -1).replace(/''/g, "'") });
+    else if (m[2] !== undefined) tokens.push({ kind: "num" });
+    else if (m[3] !== undefined) tokens.push({ kind: "id", value: m[3].toLowerCase() });
+    else tokens.push({ kind: m[4] });
+  }
+  let i = 0;
+  const peek = (kind) => tokens[i]?.kind === kind;
+  const take = (kind) => {
+    if (!peek(kind)) throw new Error(`expected ${kind} at token ${i}`);
+    return tokens[i++];
+  };
+  const binary = (next, op, type) => () => {
+    let left = next();
+    while (peek(op)) {
+      i++;
+      left = { type, left, right: next() };
+    }
+    return left;
+  };
+  const primary = () => {
+    if (peek("str")) return { type: "lit", value: take("str").value };
+    if (peek("num")) return i++, { type: "lit", value: "0" };
+    if (peek("(")) {
+      i++;
+      const inner = or();
+      take(")");
+      return inner;
+    }
+    const name = take("id").value;
+    if (name === "true" || name === "false") return { type: "bool" };
+    if (name === "null") return { type: "lit", value: "" };
+    if (peek("(")) {
+      i++;
+      const args = [];
+      while (!peek(")")) {
+        args.push(or());
+        if (!peek(")")) take(",");
+      }
+      take(")");
+      return BOOLEAN_FUNCTIONS.has(name) ? { type: "bool" } : { type: "call", args };
+    }
+    let path = [name];
+    for (;;) {
+      if (peek(".")) {
+        i++;
+        path.push(peek("*") ? (i++, "*") : take("id").value);
+      } else if (peek("[")) {
+        i++;
+        const key = or();
+        take("]");
+        path.push(key.type === "lit" ? key.value.toLowerCase() : "*");
+      } else {
+        return { type: "ref", path };
+      }
+    }
+  };
+  const unary = () => (peek("!") ? (i++, unary(), { type: "bool" }) : primary());
+  const compare = () => {
+    const left = unary();
+    if (["==", "!=", "<", "<=", ">", ">="].some((op) => peek(op))) {
+      i++;
+      unary();
+      return { type: "bool" };
+    }
+    return left;
+  };
+  const and = binary(compare, "&&", "and");
+  const or = binary(and, "||", "or");
+  const tree = or();
+  if (i !== tokens.length) throw new Error(`unexpected token ${tokens[i].kind}`);
+  return tree;
 }
 
-/** Every `${{ … }}` body in `text` that reads an input. */
-function inputExpressions(text) {
-  return [...text.matchAll(EXPRESSION)]
-    .map((match) => match[1])
-    .filter((body) => maskStrings(body).masked.match(INPUT_READ) !== null);
+/** Whether `node` is a read of a workflow input. */
+function isInputRead(node) {
+  if (node.type !== "ref") return false;
+  const [a, b, c] = node.path;
+  return a === "inputs" || (a === "github" && b === "event" && c === "inputs");
+}
+
+/** Whether `node` reads an input anywhere. */
+function readsInput(node) {
+  if (isInputRead(node)) return true;
+  if (node.type === "or" || node.type === "and") return readsInput(node.left) || readsInput(node.right);
+  if (node.type === "call") return node.args.some(readsInput);
+  return false;
 }
 
 /**
- * Whether every input read in `body` is followed by a fallback that is not the
- * empty string. A fallback that is itself an input read is checked in its own
- * turn, so `inputs.a || inputs.b` still needs `inputs.b` to fall back.
+ * Whether `node` can evaluate to the empty string BECAUSE an input was empty.
+ * `a || b` is `b` whenever `a` is empty, so it leaks what `b` leaks — or what
+ * `a` leaks, if `b` is itself empty. `a && b` can be either operand. A call is
+ * assumed to pass an empty argument through; a comparison never does.
  */
-function everyReadHasFallback(body) {
-  const { masked, literals } = maskStrings(body);
-  return [...masked.matchAll(INPUT_READ)].every((read) => {
-    const fallback = FALLBACK.exec(masked.slice(read.index + read[0].length));
-    if (fallback === null) return false;
-    return fallback[1] === undefined || literals[Number(fallback[1])] !== "";
+function leaksEmptyInput(node) {
+  switch (node.type) {
+    case "ref":
+      return isInputRead(node);
+    case "or":
+      return leaksEmptyInput(node.right) || (isEmptyLiteral(node.right) && leaksEmptyInput(node.left));
+    case "and":
+      return leaksEmptyInput(node.left) || leaksEmptyInput(node.right);
+    case "call":
+      return node.args.some(leaksEmptyInput);
+    default:
+      return false;
+  }
+}
+
+const isEmptyLiteral = (node) => node.type === "lit" && node.value === "";
+
+/** Every `${{ … }}` body in `text`, parsed, or with the parse error. */
+function expressions(text) {
+  return [...text.matchAll(EXPRESSION)].map((match) => {
+    try {
+      return { body: match[1].trim(), tree: parseExpression(match[1]) };
+    } catch (error) {
+      return { body: match[1].trim(), error: error instanceof Error ? error.message : String(error) };
+    }
   });
 }
 
@@ -92,6 +196,8 @@ function everyReadHasFallback(body) {
 function findings(source, file) {
   const doc = parseDocument(source);
   const out = [];
+  const unparseable = (where, body, error) =>
+    out.push({ where, problem: `cannot parse \`${body}\` (${error}); rewrite it or fix the checker` });
   visit(doc, {
     Pair(_key, pair) {
       if (!isScalar(pair.key)) return;
@@ -100,27 +206,31 @@ function findings(source, file) {
       if (key === "env" && isMap(pair.value)) {
         for (const entry of pair.value.items) {
           if (!isPair(entry) || !isScalar(entry.value) || typeof entry.value.value !== "string") continue;
-          const name = String(isScalar(entry.key) ? entry.key.value : "?");
-          for (const body of inputExpressions(entry.value.value)) {
-            if (everyReadHasFallback(body)) continue;
+          const where = `${file} env ${String(isScalar(entry.key) ? entry.key.value : "?")}`;
+          for (const { body, tree, error } of expressions(entry.value.value)) {
+            if (error) {
+              unparseable(where, body, error);
+              continue;
+            }
+            if (!leaksEmptyInput(tree)) continue;
             const marker = MARKER.exec(entry.value.comment ?? "");
             if (marker && marker[1]) continue;
             out.push({
-              where: `${file} env ${name}`,
+              where,
               problem: marker
                 ? "input-empty-ok marker has no reason"
-                : `reads \`${body.trim()}\` with no fallback and no input-empty-ok marker`,
+                : `reads \`${body}\` with no fallback and no input-empty-ok marker`,
             });
           }
         }
       }
 
       if (key === "run" && isScalar(pair.value) && typeof pair.value.value === "string") {
-        for (const body of inputExpressions(pair.value.value)) {
-          out.push({
-            where: `${file} run`,
-            problem: `interpolates \`${body.trim()}\` into the shell; pass it through env:`,
-          });
+        for (const { body, tree, error } of expressions(pair.value.value)) {
+          if (error) unparseable(`${file} run`, body, error);
+          else if (readsInput(tree)) {
+            out.push({ where: `${file} run`, problem: `interpolates \`${body}\` into the shell; pass it through env:` });
+          }
         }
       }
     },
@@ -192,6 +302,25 @@ describe("SELF-TEST: the checker", () => {
   it("checks a fallback that is itself an input", () => {
     expect(findings(wf("          S: ${{ inputs.a || inputs.b }}"), "t.yml")).toHaveLength(1);
     expect(findings(wf("          S: ${{ inputs.a || inputs.b || 'c' }}"), "t.yml")).toEqual([]);
+  });
+
+  // Round 2 of the audit: a fallback must protect the input it follows.
+  it("does not accept a fallback that belongs to another operand", () => {
+    expect(findings(wf("          S: ${{ format('{0}', inputs.seed, github.ref || '1') }}"), "t.yml")).toHaveLength(1);
+  });
+
+  it("resolves a fully bracketed and case-varied input read", () => {
+    expect(findings(wf("          S: ${{ github['event']['inputs']['seed'] }}"), "t.yml")).toHaveLength(1);
+    expect(findings(wf("          S: ${{ INPUTS.seed }}"), "t.yml")).toHaveLength(1);
+  });
+
+  it("does not flag a comparison, which is never empty", () => {
+    expect(findings(wf("          S: ${{ inputs.seed == '' }}"), "t.yml")).toEqual([]);
+  });
+
+  it("refuses an expression it cannot parse instead of passing it", () => {
+    const out = findings(wf("          S: ${{ inputs.seed ||| 'x' }}"), "t.yml");
+    expect(out.map((f) => f.problem)).toEqual([expect.stringMatching(/cannot parse/)]);
   });
 
   it("ignores `inputs.x` inside a string literal", () => {

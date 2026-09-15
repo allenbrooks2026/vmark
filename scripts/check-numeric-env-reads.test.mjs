@@ -11,7 +11,9 @@
  *
  * It walks a TypeScript AST rather than grepping, so an explanation of the
  * defect in a comment or a string — like the one above — is prose, not a
- * finding. It sees through parentheses, type assertions and `process["env"]`.
+ * finding. It sees through parentheses, type assertions, `process["env"]`,
+ * both sides of a fallback, conditionals and templates, and counts arithmetic
+ * coercion (`x * 1`, `-x`, `x | 0`) as a conversion.
  * Only files that mention `process` are parsed. Tracked and
  * untracked-not-ignored files are listed by `git ls-files`, so generated and
  * ignored trees cannot contribute.
@@ -61,19 +63,68 @@ function dottedName(node) {
   return null;
 }
 
-/** Whether `node` reads a variable off `process.env`, possibly with a `??`/`||` default. */
-function readsProcessEnv(node) {
+/** Whether `node` is a direct `process.env.X` / `process.env["X"]` read. */
+function isEnvRead(node) {
+  if (!ts.isPropertyAccessExpression(node) && !ts.isElementAccessExpression(node)) return false;
+  const owner = dottedName(node.expression);
+  return owner === "process.env" || owner === "globalThis.process.env";
+}
+
+/** Operators that pass an operand's VALUE through, so an env read inside still decides the result. */
+const PASS_THROUGH = new Set([
+  ts.SyntaxKind.QuestionQuestionToken,
+  ts.SyntaxKind.BarBarToken,
+  ts.SyntaxKind.AmpersandAmpersandToken,
+  ts.SyntaxKind.PlusToken,
+]);
+
+/**
+ * Whether the value of `node` can be an environment string: a read itself, or
+ * one reachable through a fallback (either side of `??`, `||`, `&&`), string
+ * concatenation, a conditional branch, or a template. A function call is a
+ * boundary: whatever it returns is its own contract.
+ */
+function carriesEnvValue(node) {
   const current = unwrap(node);
-  if (
-    ts.isBinaryExpression(current) &&
-    (current.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken ||
-      current.operatorToken.kind === ts.SyntaxKind.BarBarToken)
-  ) {
-    return readsProcessEnv(current.left);
+  if (isEnvRead(current)) return true;
+  if (ts.isBinaryExpression(current) && PASS_THROUGH.has(current.operatorToken.kind)) {
+    return carriesEnvValue(current.left) || carriesEnvValue(current.right);
   }
-  if (ts.isPropertyAccessExpression(current) || ts.isElementAccessExpression(current)) {
-    const owner = dottedName(current.expression);
-    return owner === "process.env" || owner === "globalThis.process.env";
+  if (ts.isConditionalExpression(current)) {
+    return carriesEnvValue(current.whenTrue) || carriesEnvValue(current.whenFalse);
+  }
+  if (ts.isTemplateExpression(current)) {
+    return current.templateSpans.some((span) => carriesEnvValue(span.expression));
+  }
+  return false;
+}
+
+/** Arithmetic operators that coerce an operand to a number, as `Number()` does. */
+const NUMERIC_BINARY = new Set([
+  ts.SyntaxKind.MinusToken,
+  ts.SyntaxKind.AsteriskToken,
+  ts.SyntaxKind.SlashToken,
+  ts.SyntaxKind.PercentToken,
+  ts.SyntaxKind.AsteriskAsteriskToken,
+  ts.SyntaxKind.BarToken,
+  ts.SyntaxKind.AmpersandToken,
+  ts.SyntaxKind.CaretToken,
+  ts.SyntaxKind.LessThanLessThanToken,
+  ts.SyntaxKind.GreaterThanGreaterThanToken,
+  ts.SyntaxKind.GreaterThanGreaterThanGreaterThanToken,
+]);
+const NUMERIC_UNARY = new Set([ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken, ts.SyntaxKind.TildeToken]);
+
+/** Whether `node` converts an environment value to a number. */
+function convertsEnvToNumber(node) {
+  if (ts.isCallExpression(node)) {
+    return CONVERTERS.has(dottedName(node.expression) ?? "") && node.arguments.length > 0 && carriesEnvValue(node.arguments[0]);
+  }
+  if (ts.isPrefixUnaryExpression(node)) {
+    return NUMERIC_UNARY.has(node.operator) && carriesEnvValue(node.operand);
+  }
+  if (ts.isBinaryExpression(node) && NUMERIC_BINARY.has(node.operatorToken.kind)) {
+    return carriesEnvValue(node.left) || carriesEnvValue(node.right);
   }
   return false;
 }
@@ -92,15 +143,7 @@ function numericEnvReads(source, file) {
   const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind(file));
   const out = [];
   const visit = (node) => {
-    const converted =
-      (ts.isCallExpression(node) &&
-        CONVERTERS.has(dottedName(node.expression) ?? "") &&
-        node.arguments.length > 0 &&
-        readsProcessEnv(node.arguments[0])) ||
-      (ts.isPrefixUnaryExpression(node) &&
-        node.operator === ts.SyntaxKind.PlusToken &&
-        readsProcessEnv(node.operand));
-    if (converted) {
+    if (convertsEnvToNumber(node)) {
       out.push(`${file}:${sourceFile.getLineAndCharacterOfPosition(node.getStart(sourceFile)).line + 1}`);
     }
     ts.forEachChild(node, visit);
@@ -151,6 +194,15 @@ describe("SELF-TEST: the detector", () => {
     "const c = Number(process.env.X as string);",
     "const d = Number(process.env.X!);",
     "const e = parseInt(<string>process.env.X, 10);",
+    // Round 2 of the audit: a read on EITHER side of a fallback reaches the conversion.
+    "const f = Number(override ?? process.env.FUZZ_SEED);",
+    "const g = Number(flag && process.env.X);",
+    "const h = Number(cond ? process.env.X : 3);",
+    'const i = Number(`${process.env.X}`);',
+    'const j = Number("" + process.env.X);',
+    "const k = process.env.X * 1;",
+    "const l = -process.env.X;",
+    "const m = process.env.X | 0;",
   ])("flags %s", (line) => {
     expect(numericEnvReads(line, "x.ts")).toEqual(["x.ts:1"]);
   });
@@ -161,6 +213,8 @@ describe("SELF-TEST: the detector", () => {
     "const n = Number(settings.count);",
     '// the old shape: Number(process.env.FUZZ_SEED ?? "20260805")',
     'const doc = "Number(process.env.X)";',
+    "const n = Number(parseEnv(process.env.X));",
+    "const o = Number(process.env.X === undefined);",
   ])("leaves %s alone", (line) => {
     expect(numericEnvReads(line, "x.ts")).toEqual([]);
   });
