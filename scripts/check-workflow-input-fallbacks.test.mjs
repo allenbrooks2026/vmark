@@ -158,7 +158,7 @@ function readsInput(node) {
 /**
  * Whether `node` can evaluate to the empty string BECAUSE an input was empty.
  * `a || b` is `b` whenever `a` is empty, so it leaks what `b` leaks — or what
- * `a` leaks, if `b` is itself empty. `a && b` can be either operand. A call is
+ * `a` leaks, if `b` can itself be empty. `a && b` can be either operand. A call is
  * assumed to pass an empty argument through; a comparison never does.
  */
 function leaksEmptyInput(node) {
@@ -166,7 +166,7 @@ function leaksEmptyInput(node) {
     case "ref":
       return isInputRead(node);
     case "or":
-      return leaksEmptyInput(node.right) || (isEmptyLiteral(node.right) && leaksEmptyInput(node.left));
+      return leaksEmptyInput(node.right) || (mayBeEmpty(node.right) && leaksEmptyInput(node.left));
     case "and":
       return leaksEmptyInput(node.left) || leaksEmptyInput(node.right);
     case "call":
@@ -176,7 +176,27 @@ function leaksEmptyInput(node) {
   }
 }
 
-const isEmptyLiteral = (node) => node.type === "lit" && node.value === "";
+/**
+ * Whether `node` can evaluate to the empty string at all, input or not: the
+ * test a fallback must fail to protect anything. A context read other than an
+ * input is assumed non-empty; a function call is assumed able to return "".
+ */
+function mayBeEmpty(node) {
+  switch (node.type) {
+    case "lit":
+      return node.value === "";
+    case "ref":
+      return isInputRead(node);
+    case "or":
+      return mayBeEmpty(node.left) && mayBeEmpty(node.right);
+    case "and":
+      return mayBeEmpty(node.left) || mayBeEmpty(node.right);
+    case "call":
+      return true;
+    default:
+      return false;
+  }
+}
 
 /** Every `${{ … }}` body in `text`, parsed, or with the parse error. */
 function expressions(text) {
@@ -307,6 +327,13 @@ describe("SELF-TEST: the checker", () => {
   // Round 2 of the audit: a fallback must protect the input it follows.
   it("does not accept a fallback that belongs to another operand", () => {
     expect(findings(wf("          S: ${{ format('{0}', inputs.seed, github.ref || '1') }}"), "t.yml")).toHaveLength(1);
+  });
+
+  // Round 3 of the audit: a fallback that can itself be empty protects nothing.
+  it("does not accept a fallback that can evaluate to empty", () => {
+    expect(findings(wf("          S: ${{ inputs.seed || ('' || '') }}"), "t.yml")).toHaveLength(1);
+    expect(findings(wf("          S: ${{ inputs.seed || format('{0}', '') }}"), "t.yml")).toHaveLength(1);
+    expect(findings(wf("          S: ${{ inputs.seed || github.ref }}"), "t.yml")).toEqual([]);
   });
 
   it("resolves a fully bracketed and case-varied input read", () => {

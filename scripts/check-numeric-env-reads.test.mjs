@@ -115,10 +115,13 @@ const NUMERIC_BINARY = new Set([
 ]);
 const NUMERIC_UNARY = new Set([ts.SyntaxKind.PlusToken, ts.SyntaxKind.MinusToken, ts.SyntaxKind.TildeToken]);
 
+/** A converter's name with any global-object qualifier removed: `globalThis.Number` is `Number`. */
+const converterName = (callee) => (dottedName(callee) ?? "").replace(/^(?:globalThis|window|self|global)\./, "");
+
 /** Whether `node` converts an environment value to a number. */
 function convertsEnvToNumber(node) {
   if (ts.isCallExpression(node)) {
-    return CONVERTERS.has(dottedName(node.expression) ?? "") && node.arguments.length > 0 && carriesEnvValue(node.arguments[0]);
+    return CONVERTERS.has(converterName(node.expression)) && node.arguments.length > 0 && carriesEnvValue(node.arguments[0]);
   }
   if (ts.isPrefixUnaryExpression(node)) {
     return NUMERIC_UNARY.has(node.operator) && carriesEnvValue(node.operand);
@@ -203,6 +206,10 @@ describe("SELF-TEST: the detector", () => {
     "const k = process.env.X * 1;",
     "const l = -process.env.X;",
     "const m = process.env.X | 0;",
+    // Round 3 of the audit: a qualified built-in is the same converter.
+    "const q = globalThis.Number(process.env.N);",
+    "const r = globalThis.Number.parseInt(process.env.N, 10);",
+    "const t = window.parseFloat(process.env.N);",
   ])("flags %s", (line) => {
     expect(numericEnvReads(line, "x.ts")).toEqual(["x.ts:1"]);
   });

@@ -161,6 +161,26 @@ describe("normalizers on ordinary edits", () => {
     expect(blockTypes(session)).not.toContain("footnote_definition");
   });
 
+  // Standing down on an undo must not leave the plugin's "this document has no
+  // footnotes" cache stale when the undo brings footnotes back. Round 3 of the
+  // branch's audit.
+  it("still cleans up a definition after an undo restored its footnotes", () => {
+    session = createTypingSession({ markdown: "Text[^1].\n\n[^1]: note\n" });
+    session.editor.view.dispatch(closeHistory(session.editor.state.tr));
+    const { schema } = session.editor;
+    const plain = schema.nodes.paragraph.create(null, [schema.text("plain")]);
+    session.editor.view.dispatch(session.editor.state.tr.replaceWith(0, session.editor.state.doc.content.size, plain));
+    session.editor.view.dispatch(closeHistory(session.editor.state.tr));
+    session.undo();
+    expect(blockTypes(session)).toContain("footnote_definition");
+    let referenceAt = -1;
+    session.editor.state.doc.descendants((node, pos) => {
+      if (node.type.name === "footnote_reference") referenceAt = pos;
+    });
+    session.editor.view.dispatch(session.editor.state.tr.delete(referenceAt, referenceAt + 1));
+    expect(blockTypes(session)).not.toContain("footnote_definition");
+  });
+
   it("still turns an emptied heading back into a paragraph", () => {
     session = createTypingSession({ markdown: "# Title\n" });
     selectAllText(session);

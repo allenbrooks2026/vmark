@@ -303,9 +303,12 @@ export const footnotePopupExtension = Extension.create<FootnotePopupOptions>({
           if (!refType || !defType) return null;
 
           const docChanged = transactions.some((tr) => tr.docChanged);
-          // An undo/redo restores recorded footnotes; cleanup would rewrite it and
-          // corrupt the undo history. A pending cleanup waits for the next edit.
-          if ((!docChanged && !cleanupPending) || isHistoryBatch(transactions)) return null;
+          if (!docChanged && !cleanupPending) return null;
+          // Undo/redo restores recorded footnotes: never rewrite it (see historyBatch), but the cache may be stale.
+          if (isHistoryBatch(transactions)) {
+            hasFootnotesCache = null;
+            return null;
+          }
 
           // Skip during IME composition — dispatching transactions mid-composition
           // can cause ProseMirror to reconcile the DOM, disrupting active CJK input
