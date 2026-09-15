@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   })),
   useWindowLabel: vi.fn(() => "main"),
   consumeWysiwygPendingNav: vi.fn(() => false),
+  reportUnparseableDocument: vi.fn(),
   // Mock editor returned by useEditor
   mockEditor: null as ReturnType<typeof createMockEditor> | null,
   useEditor: vi.fn(),
@@ -208,7 +209,7 @@ vi.mock("@/stores/documentStore", () => ({
   },
   useRevisionStore: { getState: () => ({ registerEdit: vi.fn(), setRevision: vi.fn(), getRevision: vi.fn(() => null) }) },
   generateRevisionId: () => "rev-test-id",
-  useLargeFileSessionStore: { getState: () => ({ isForcedSource: () => false }), subscribe: () => () => {} },
+  useLargeFileSessionStore: { getState: () => ({ isForcedSource: () => false, forcedSourceReason: () => undefined }), subscribe: () => () => {} },
   useUnifiedHistoryStore: { getState: () => ({ documents: {}, createCheckpoint: vi.fn() }), subscribe: () => () => {} },
   useLintStore: { getState: () => ({ diagnosticsByTab: {}, selectedIndexByTab: {}, clearDiagnostics: vi.fn() }), subscribe: () => () => {} },
   useFileLoadStore: { getState: () => ({ active: false }) },
@@ -216,6 +217,10 @@ vi.mock("@/stores/documentStore", () => ({
 
 vi.mock("./wysiwygPendingNav", () => ({
   consumeWysiwygPendingNav: (...args: unknown[]) => mocks.consumeWysiwygPendingNav(...args),
+}));
+
+vi.mock("@/services/editor/unparseableDocument", () => ({
+  reportUnparseableDocument: (...args: unknown[]) => mocks.reportUnparseableDocument(...args),
 }));
 
 vi.mock("./ImageContextMenu", () => ({
@@ -402,15 +407,17 @@ describe("syncMarkdownToEditor — via onCreate", () => {
     expect(mockTr.setMeta).toHaveBeenCalledWith("addToHistory", false);
   });
 
-  it("handles parse failure in syncMarkdownToEditor gracefully", () => {
+  it("reports an initial parse failure for this tab instead of leaving a blank editor (#1407)", () => {
     const editor = createMockEditor();
     mocks.useEditor.mockReturnValue(editor);
     mocks.getTiptapEditorView.mockReturnValue(null);
+    mocks.reportUnparseableDocument.mockReset();
 
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     // parseMarkdown throws
-    mocks.parseMarkdown.mockImplementation(() => { throw new Error("parse fail"); });
+    const failure = new Error("parse fail");
+    mocks.parseMarkdown.mockImplementation(() => { throw failure; });
 
     render(<TiptapEditorInner hidden={false} />);
     const config = mocks.useEditor.mock.calls[mocks.useEditor.mock.calls.length - 1][0];
@@ -421,6 +428,85 @@ describe("syncMarkdownToEditor — via onCreate", () => {
     vi.runAllTimers(); // flush pending timers to prevent bleed into next test
     vi.useRealTimers();
     errorSpy.mockRestore();
+
+    // The failure reaches the user (and Source mode), with the real error so
+    // a nesting refusal can say how deep the document was.
+    expect(mocks.reportUnparseableDocument).toHaveBeenCalledWith("tab-1", failure);
+  });
+
+  it("does not report from a HIDDEN keep-alive editor — it reports when shown (#1407)", () => {
+    // A hidden instance shows the user nothing and takes no edits. Reporting
+    // from it would put a tab the user is reading in Source mode, with a toast,
+    // for a WYSIWYG view they have not asked for; its visibility sync re-parses
+    // and reports if they ever do.
+    const editor = createMockEditor();
+    mocks.useEditor.mockReturnValue(editor);
+    mocks.getTiptapEditorView.mockReturnValue(null);
+    mocks.reportUnparseableDocument.mockReset();
+    mocks.parseMarkdown.mockImplementation(() => { throw new Error("parse fail"); });
+
+    render(<TiptapEditorInner hidden={true} />);
+    const config = mocks.useEditor.mock.calls[mocks.useEditor.mock.calls.length - 1][0];
+    vi.useFakeTimers();
+    config.onCreate({ editor });
+    vi.runAllTimers();
+    vi.useRealTimers();
+
+    expect(mocks.reportUnparseableDocument).not.toHaveBeenCalled();
+  });
+
+  it("does not report a refused content DRIFT from a hidden editor either (#1407, audit round 2)", () => {
+    // The first parse succeeds, the document changes before the deferred work
+    // runs, and the drift re-sync is refused — while the editor is still hidden.
+    const editor = createMockEditor();
+    mocks.useEditor.mockReturnValue(editor);
+    mocks.getTiptapEditorView.mockReturnValue(null);
+    mocks.reportUnparseableDocument.mockReset();
+    mocks.parseMarkdown
+      .mockImplementationOnce(() => ({ type: "doc", content: [] }))
+      .mockImplementationOnce(() => { throw new Error("refused drift"); });
+    mocks.useDocumentContent.mockReturnValue("initial");
+
+    const { rerender } = render(<TiptapEditorInner hidden={true} />);
+    const config = mocks.useEditor.mock.calls[mocks.useEditor.mock.calls.length - 1][0];
+    vi.useFakeTimers();
+    config.onCreate({ editor });
+    mocks.useDocumentContent.mockReturnValue("> refused");
+    rerender(<TiptapEditorInner hidden={true} />);
+    vi.runAllTimers();
+    vi.useRealTimers();
+    mocks.useDocumentContent.mockReturnValue("# hello");
+
+    expect(mocks.reportUnparseableDocument).not.toHaveBeenCalled();
+  });
+
+  it("parses the LATEST content, not a refused snapshot the user already replaced (#1407, audit round 3)", () => {
+    // Mounted with a document the parser refuses; before the deferred parse
+    // runs, the content is repaired and the editor shown. Reporting the stale
+    // snapshot would put the repaired document in Source mode, empty.
+    const editor = createMockEditor();
+    mocks.useEditor.mockReturnValue(editor);
+    mocks.getTiptapEditorView.mockReturnValue(null);
+    mocks.reportUnparseableDocument.mockReset();
+    mocks.parseMarkdown.mockReset();
+    mocks.parseMarkdown
+      .mockImplementationOnce(() => { throw new Error("refused snapshot"); })
+      .mockImplementation(() => ({ type: "doc", content: [] }));
+    mocks.useDocumentContent.mockReturnValue("> refused");
+
+    const { rerender } = render(<TiptapEditorInner hidden={true} />);
+    const config = mocks.useEditor.mock.calls[mocks.useEditor.mock.calls.length - 1][0];
+    vi.useFakeTimers();
+    config.onCreate({ editor });
+    mocks.useDocumentContent.mockReturnValue("# repaired");
+    rerender(<TiptapEditorInner hidden={false} />);
+    vi.runAllTimers();
+    vi.useRealTimers();
+    mocks.useDocumentContent.mockReturnValue("# hello");
+    mocks.parseMarkdown.mockReset();
+    mocks.parseMarkdown.mockImplementation(() => ({ type: "doc", content: [] }));
+
+    expect(mocks.reportUnparseableDocument).not.toHaveBeenCalled();
   });
 });
 

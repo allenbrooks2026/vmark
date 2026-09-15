@@ -4,6 +4,10 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Editor } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
+
+const reportUnparseableDocument = vi.hoisted(() => vi.fn());
+vi.mock("@/services/editor/unparseableDocument", () => ({ reportUnparseableDocument }));
+
 import {
   applySpellcheckForDocSize,
   buildTiptapEditorProps,
@@ -11,7 +15,9 @@ import {
   SPELLCHECK_DISABLE_CHAR_THRESHOLD,
   spellcheckAttrForDocSize,
   suppressCvIdleDuringEdit,
+  syncMarkdownToEditor,
 } from "./tiptapEditorHelpers";
+import { MAX_NESTING_DEPTH, nestingRefusal } from "@/utils/markdownPipeline/nestingDepth";
 
 describe("buildTiptapEditorProps", () => {
   it("snapshots the spellcheck attribute from the doc size", () => {
@@ -247,5 +253,41 @@ describe("suppressCvIdleDuringEdit", () => {
       suppressCvIdleDuringEdit(containerRef, CV_IDLE_CHAR_THRESHOLD, timeoutRef),
     ).not.toThrow();
     expect(timeoutRef.current).toBeNull();
+  });
+});
+
+describe("syncMarkdownToEditor on a document the parser refuses (#1407)", () => {
+  let editor: Editor;
+
+  beforeEach(() => {
+    reportUnparseableDocument.mockReset();
+    editor = new Editor({ element: document.createElement("div"), extensions: [StarterKit] });
+    editor.commands.setContent("<p>what the user had</p>");
+  });
+
+  afterEach(() => {
+    editor.destroy();
+  });
+
+  it("keeps the editor's content, and reports the refusal for this tab", () => {
+    const lastExternalContent = { current: "what the user had" };
+    const tooDeep = `${"> ".repeat(MAX_NESTING_DEPTH + 1)}a\n`;
+
+    const synced = syncMarkdownToEditor(editor, tooDeep, lastExternalContent, false, "tab-7");
+
+    expect(synced).toBe(false);
+    expect(editor.getText()).toBe("what the user had");
+    // Not marked as synced, so a later successful sync is not skipped.
+    expect(lastExternalContent.current).toBe("what the user had");
+    expect(reportUnparseableDocument).toHaveBeenCalledTimes(1);
+    const [tabId, error] = reportUnparseableDocument.mock.calls[0];
+    expect(tabId).toBe("tab-7");
+    expect(nestingRefusal(error)).toEqual({ depth: MAX_NESTING_DEPTH + 1, limit: MAX_NESTING_DEPTH });
+  });
+
+  it("reports nothing when the content parses", () => {
+    const lastExternalContent = { current: "" };
+    expect(syncMarkdownToEditor(editor, "# fine\n", lastExternalContent, false, "tab-7")).toBe(true);
+    expect(reportUnparseableDocument).not.toHaveBeenCalled();
   });
 });

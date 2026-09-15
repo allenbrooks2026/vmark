@@ -339,5 +339,7 @@
   "splitPane.warningCount_other": "경고 {{count}}개",
   "splitPane.infoCount_one": "알림 {{count}}개",
   "splitPane.infoCount_other": "알림 {{count}}개",
-  "toc.empty": "제목 없음"
+  "toc.empty": "제목 없음",
+  "unparseable.tooDeeplyNested": "이 문서는 {{depth}}단계까지 중첩되어 있습니다. WYSIWYG는 최대 {{limit}}단계까지 지원하므로 소스 모드로 열었습니다.",
+  "unparseable.parseFailed": "이 문서를 WYSIWYG로 표시할 수 없어 소스 모드로 열었습니다."
 }

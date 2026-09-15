@@ -339,5 +339,7 @@
   "splitPane.warningCount_other": "{{count}}件の警告",
   "splitPane.infoCount_one": "{{count}}件の情報",
   "splitPane.infoCount_other": "{{count}}件の情報",
-  "toc.empty": "見出しがありません"
+  "toc.empty": "見出しがありません",
+  "unparseable.tooDeeplyNested": "このドキュメントは {{depth}} 階層までネストされています。WYSIWYG で表示できるのは {{limit}} 階層までのため、ソースモードで開きました。",
+  "unparseable.parseFailed": "このドキュメントは WYSIWYG で表示できなかったため、ソースモードで開きました。"
 }

@@ -339,5 +339,7 @@
   "splitPane.warningCount_other": "{{count}} advertencias",
   "splitPane.infoCount_one": "{{count}} aviso",
   "splitPane.infoCount_other": "{{count}} avisos",
-  "toc.empty": "Sin encabezados"
+  "toc.empty": "Sin encabezados",
+  "unparseable.tooDeeplyNested": "Este documento tiene {{depth}} niveles de anidamiento; WYSIWYG admite hasta {{limit}}, así que se abrió en modo Fuente.",
+  "unparseable.parseFailed": "Este documento no se pudo mostrar en WYSIWYG, así que se abrió en modo Fuente."
 }

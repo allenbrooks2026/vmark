@@ -40,6 +40,7 @@ const mocks = vi.hoisted(() => ({
   })),
   useWindowLabel: vi.fn(() => "main"),
   consumeWysiwygPendingNav: vi.fn(() => false),
+  reportUnparseableDocument: vi.fn(),
   // Mock editor returned by useEditor
   mockEditor: null as ReturnType<typeof createMockEditor> | null,
   useEditor: vi.fn(),
@@ -206,7 +207,7 @@ vi.mock("@/stores/documentStore", () => ({
   },
   useRevisionStore: { getState: () => ({ registerEdit: vi.fn(), setRevision: vi.fn(), getRevision: vi.fn(() => null) }) },
   generateRevisionId: () => "rev-test-id",
-  useLargeFileSessionStore: { getState: () => ({ isForcedSource: () => false }), subscribe: () => () => {} },
+  useLargeFileSessionStore: { getState: () => ({ isForcedSource: () => false, forcedSourceReason: () => undefined }), subscribe: () => () => {} },
   useUnifiedHistoryStore: { getState: () => ({ documents: {}, createCheckpoint: vi.fn() }), subscribe: () => () => {} },
   useLintStore: { getState: () => ({ diagnosticsByTab: {}, selectedIndexByTab: {}, clearDiagnostics: vi.fn() }), subscribe: () => () => {} },
   useFileLoadStore: { getState: () => ({ active: false }) },
@@ -214,6 +215,10 @@ vi.mock("@/stores/documentStore", () => ({
 
 vi.mock("./wysiwygPendingNav", () => ({
   consumeWysiwygPendingNav: (...args: unknown[]) => mocks.consumeWysiwygPendingNav(...args),
+}));
+
+vi.mock("@/services/editor/unparseableDocument", () => ({
+  reportUnparseableDocument: (...args: unknown[]) => mocks.reportUnparseableDocument(...args),
 }));
 
 vi.mock("./ImageContextMenu", () => ({
@@ -434,8 +439,9 @@ describe("TiptapEditorInner — onCreate behavior", () => {
   });
 
   it("handles parseMarkdown failure in onCreate gracefully", () => {
+    const failure = new Error("Parse error");
     mocks.parseMarkdown.mockImplementationOnce(() => {
-      throw new Error("Parse error");
+      throw failure;
     });
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     const editor = createMockEditor();
@@ -444,9 +450,15 @@ describe("TiptapEditorInner — onCreate behavior", () => {
     render(<TiptapEditorInner />);
     const config = mocks.useEditor.mock.calls[0][0];
 
-    // onCreate schedules the parse asynchronously — should not throw synchronously
+    // onCreate schedules the parse asynchronously — should not throw synchronously.
+    // Run the deferred parse HERE: left pending, the one-shot throw leaked into
+    // whichever later test ran timers next.
+    vi.useFakeTimers();
     expect(() => config.onCreate({ editor })).not.toThrow();
+    vi.runAllTimers();
+    vi.useRealTimers();
     errorSpy.mockRestore();
+    expect(mocks.reportUnparseableDocument).toHaveBeenCalledWith("tab-1", failure);
   });
 
   it("schedules focus and cursor restore when not hidden", () => {

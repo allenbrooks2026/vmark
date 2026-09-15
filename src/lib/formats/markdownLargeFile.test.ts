@@ -75,7 +75,7 @@ describe("maybeMarkLargeMarkdownAsSource", () => {
     maybeMarkLargeMarkdownAsSource("tab-1", "/foo.md", true);
     expect(
       useLargeFileSessionStore.getState().forcedSourceTabs["tab-1"],
-    ).toBe(true);
+    ).toBe("large-file");
   });
 
   it("does not mark non-markdown tabs even when shouldForce is true", () => {
@@ -93,7 +93,7 @@ describe("maybeMarkLargeMarkdownAsSource", () => {
     maybeMarkLargeMarkdownAsSource("tab-1", "/foo.md", true);
     expect(
       useLargeFileSessionStore.getState().forcedSourceTabs["tab-1"],
-    ).toBe(true);
+    ).toBe("large-file");
   });
 
   it("does NOT mark non-markdown extensions when registry is unbootstrapped", () => {
@@ -121,7 +121,7 @@ describe("maybeMarkLargeMarkdownAsSource", () => {
       maybeMarkLargeMarkdownAsSource(tabId, `/foo.${ext}`, true);
       expect(
         useLargeFileSessionStore.getState().forcedSourceTabs[tabId],
-      ).toBe(true);
+      ).toBe("large-file");
     }
   });
 });

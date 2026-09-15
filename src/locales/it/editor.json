@@ -339,5 +339,7 @@
   "splitPane.warningCount_other": "{{count}} avvisi",
   "splitPane.infoCount_one": "{{count}} notifica",
   "splitPane.infoCount_other": "{{count}} notifiche",
-  "toc.empty": "Nessuna intestazione"
+  "toc.empty": "Nessuna intestazione",
+  "unparseable.tooDeeplyNested": "Questo documento ha {{depth}} livelli di annidamento; WYSIWYG ne supporta al massimo {{limit}}, quindi è stato aperto in modalità Sorgente.",
+  "unparseable.parseFailed": "Impossibile visualizzare questo documento in WYSIWYG, quindi è stato aperto in modalità Sorgente."
 }

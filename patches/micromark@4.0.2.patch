@@ -1,0 +1,121 @@
+diff --git a/dev/lib/initialize/text.js b/dev/lib/initialize/text.js
+index 7192e70a0972e808d779999e57153bf3ed7bfc3a..0eaba5658038c8f1885f1279b8f30ba720a72d65 100644
+--- a/dev/lib/initialize/text.js
++++ b/dev/lib/initialize/text.js
+@@ -113,30 +113,39 @@ function createResolver(extraResolver) {
+ 
+   /** @type {Resolver} */
+   function resolveAllText(events, context) {
+-    let index = -1
+-    /** @type {number | undefined} */
+-    let enter
+-
+     // A rather boring computation (to merge adjacent `data` events) which
+     // improves mm performance by 29%.
+-    while (++index <= events.length) {
+-      if (enter === undefined) {
+-        if (events[index] && events[index][1].type === types.data) {
+-          enter = index
+-          index++
+-        }
+-      } else if (!events[index] || events[index][1].type !== types.data) {
+-        // Don’t do anything if there is one data token.
+-        if (index !== enter + 2) {
+-          events[enter][1].end = events[index - 1][1].end
+-          events.splice(enter + 2, index - enter - 2)
+-          index = enter + 2
+-        }
+-
+-        enter = undefined
++    //
++    // VMark patch (#1407): merge in ONE compacting pass. The original removed
++    // each run with `events.splice`, moving every later event once per run —
++    // O(runs × events), and ~10× slower per step once the list outgrows V8's
++    // regular heap objects. The kept events, the merged token's `end`, and the
++    // returned array are identical.
++    const length = events.length
++    let write = 0
++    let index = 0
++
++    while (index < length) {
++      const event = events[index]
++
++      if (event[1].type !== types.data) {
++        events[write++] = event
++        index++
++        continue
+       }
++
++      // The enter's own exit is at `index + 1`; a run continues from there.
++      let end = index + 2
++      while (end < length && events[end][1].type === types.data) end++
++      // Don’t do anything if there is one data token.
++      if (end !== index + 2) event[1].end = events[end - 1][1].end
++      events[write++] = event
++      if (index + 1 < length) events[write++] = events[index + 1]
++      index = end
+     }
+ 
++    events.length = write
++
+     return extraResolver ? extraResolver(events, context) : events
+   }
+ }
+diff --git a/lib/initialize/text.js b/lib/initialize/text.js
+index b9383cb721b95c68bd0e684da6cbf441ed82b8eb..eac1239a4263cd6945fc36b8db8bb1927659d6f7 100644
+--- a/lib/initialize/text.js
++++ b/lib/initialize/text.js
+@@ -104,28 +104,35 @@ function createResolver(extraResolver) {
+ 
+   /** @type {Resolver} */
+   function resolveAllText(events, context) {
+-    let index = -1;
+-    /** @type {number | undefined} */
+-    let enter;
+-
+     // A rather boring computation (to merge adjacent `data` events) which
+     // improves mm performance by 29%.
+-    while (++index <= events.length) {
+-      if (enter === undefined) {
+-        if (events[index] && events[index][1].type === "data") {
+-          enter = index;
+-          index++;
+-        }
+-      } else if (!events[index] || events[index][1].type !== "data") {
+-        // Don’t do anything if there is one data token.
+-        if (index !== enter + 2) {
+-          events[enter][1].end = events[index - 1][1].end;
+-          events.splice(enter + 2, index - enter - 2);
+-          index = enter + 2;
+-        }
+-        enter = undefined;
++    //
++    // VMark patch (#1407): merge in ONE compacting pass. The original removed
++    // each run with `events.splice`, moving every later event once per run —
++    // O(runs × events), and ~10× slower per step once the list outgrows V8's
++    // regular heap objects. The kept events, the merged token's `end`, and the
++    // returned array are identical.
++    const length = events.length;
++    let write = 0;
++    let index = 0;
++    while (index < length) {
++      const event = events[index];
++      if (event[1].type !== "data") {
++        events[write++] = event;
++        index++;
++        continue;
+       }
++
++      // The enter's own exit is at `index + 1`; a run continues from there.
++      let end = index + 2;
++      while (end < length && events[end][1].type === "data") end++;
++      // Don’t do anything if there is one data token.
++      if (end !== index + 2) event[1].end = events[end - 1][1].end;
++      events[write++] = event;
++      if (index + 1 < length) events[write++] = events[index + 1];
++      index = end;
+     }
++    events.length = write;
+     return extraResolver ? extraResolver(events, context) : events;
+   }
+ }

@@ -339,5 +339,7 @@
   "splitPane.warningCount_other": "{{count}} Warnungen",
   "splitPane.infoCount_one": "{{count}} Hinweis",
   "splitPane.infoCount_other": "{{count}} Hinweise",
-  "toc.empty": "Keine Überschriften"
+  "toc.empty": "Keine Überschriften",
+  "unparseable.tooDeeplyNested": "Dieses Dokument ist {{depth}} Ebenen tief verschachtelt; WYSIWYG unterstützt bis zu {{limit}}, daher wurde es im Quelltextmodus geöffnet.",
+  "unparseable.parseFailed": "Dieses Dokument konnte nicht in WYSIWYG angezeigt werden und wurde daher im Quelltextmodus geöffnet."
 }

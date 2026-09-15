@@ -99,5 +99,6 @@
   "scrollTabsRight": "Rolar abas para a direita",
   "terminal.sessionExited": "{{name}} (encerrado)",
   "terminal.backgroundActivity": "Atividade em segundo plano",
-  "terminal.noWorkspaceSession": "Abra uma pasta ou salve seu arquivo para usar o terminal"
+  "terminal.noWorkspaceSession": "Abra uma pasta ou salve seu arquivo para usar o terminal",
+  "unparseable.openedInSourceMode": "Aberto no modo Fonte (não pode ser exibido no WYSIWYG)."
 }

@@ -99,5 +99,6 @@
   "scrollTabsRight": "탭을 오른쪽으로 스크롤",
   "terminal.sessionExited": "{{name}} (종료됨)",
   "terminal.backgroundActivity": "백그라운드 활동",
-  "terminal.noWorkspaceSession": "터미널을 사용하려면 폴더를 열거나 파일을 저장하세요"
+  "terminal.noWorkspaceSession": "터미널을 사용하려면 폴더를 열거나 파일을 저장하세요",
+  "unparseable.openedInSourceMode": "소스 모드로 열림(WYSIWYG로 표시할 수 없음)."
 }

@@ -22,7 +22,8 @@ import { describe, it, expect } from "vitest";
 import { spawnSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { pathologicalCases } from "./pathologicalCases";
+import { pathologicalCases, pathologicalScale } from "./pathologicalCases";
+import { MAX_NESTING_DEPTH } from "../../nestingDepth";
 import { LIVENESS_TIMEOUT_MS } from "../../../../../vitest.shared";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -62,6 +63,8 @@ interface CaseReport {
   starting?: boolean;
   parseMs?: number;
   serializeMs?: number;
+  refusedMs?: number;
+  refusedDepth?: number;
   done?: boolean;
 }
 
@@ -118,7 +121,9 @@ describe("pathological inputs (killable child process)", () => {
     const { res, lines } = runChild({}, WALL_CEILING_MS);
 
     const started = lines.filter((l) => l.starting && l.name).map((l) => l.name);
-    const finished = new Set(lines.filter((l) => l.parseMs !== undefined).map((l) => l.name));
+    const parsed = lines.filter((l) => l.parseMs !== undefined).map((l) => l.name);
+    const refused = lines.filter((l) => l.refusedMs !== undefined).map((l) => l.name);
+    const finished = new Set([...parsed, ...refused]);
     const lastStarted = started.at(-1);
 
     expect(
@@ -129,8 +134,16 @@ describe("pathological inputs (killable child process)", () => {
     expect(res.status, `child failed\nstderr: ${res.stderr}`).toBe(0);
     expect(lines.some((l) => l.done)).toBe(true);
 
-    const expected = pathologicalCases(1).map((c) => c.name);
-    expect([...finished].sort()).toEqual([...expected].sort());
+    // Every class must come back — parsed, or refused as too deeply nested.
+    // Which of the two is decided by the case's DECLARED container depth at
+    // the scale the child ran, so a refusal nobody expected fails here instead
+    // of passing as "finished". The soak's scale 8 refuses the two container
+    // classes; counting only parsed classes made that a failure (#1407).
+    const cases = pathologicalCases(pathologicalScale());
+    const deep = (c: (typeof cases)[number]) => c.containerDepth > MAX_NESTING_DEPTH;
+    expect([...refused].sort()).toEqual(cases.filter(deep).map((c) => c.name).sort());
+    expect([...parsed].sort()).toEqual(cases.filter((c) => !deep(c)).map((c) => c.name).sort());
+    expect(finished.size).toBe(cases.length);
   }, WALL_CEILING_MS + 30_000);
 
   it("SELF-TEST: a deliberate busy loop is killed and reported, not hung", () => {

@@ -154,7 +154,7 @@ export function maxContainerDepth(markdown: string): number {
  * otherwise have to match prose through a wrapper — which breaks the first
  * time the wording is edited.
  *
- * Module-local on purpose. `isNestingTooDeep` is the interface, and it is the
+ * Module-local on purpose. `nestingRefusal` is the interface, and it is the
  * one callers should use: a bare `instanceof` would miss the case the wrapper
  * creates, where the refusal arrives as the `cause` of a generic parse error.
  */
@@ -170,17 +170,31 @@ class NestingTooDeepError extends Error {
   }
 }
 
-/** Is `error` — or anything it wraps — a nesting refusal? */
-export function isNestingTooDeep(error: unknown): boolean {
+/** What a nesting refusal reports: how deep the document was, and the limit. */
+export interface NestingRefusal {
+  depth: number;
+  limit: number;
+}
+
+/**
+ * The nesting refusal `error` is — or wraps — or undefined.
+ *
+ * Classified by TYPE along the `cause` chain, never by message: an error that
+ * merely says "Nesting is 5000 levels deep" is not one. Callers that must tell
+ * a deliberate refusal from a crash (the fuzz soaks, the editor's parse
+ * failure path) need the numbers too, to say what happened.
+ */
+export function nestingRefusal(error: unknown): NestingRefusal | undefined {
   let cursor: unknown = error;
   // Bounded: a cause chain is short, and an accidental cycle must not hang the
   // caller that is already handling a failure.
   for (let i = 0; i < 10 && cursor instanceof Error; i += 1) {
-    if (cursor instanceof NestingTooDeepError) return true;
+    if (cursor instanceof NestingTooDeepError) return { depth: cursor.depth, limit: cursor.limit };
     cursor = (cursor as { cause?: unknown }).cause;
   }
-  return false;
+  return undefined;
 }
+
 
 /** Throw if `markdown` nests deeper than the parser can survive. */
 export function checkNestingDepth(markdown: string): void {

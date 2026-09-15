@@ -208,7 +208,7 @@ vi.mock("@/stores/documentStore", () => ({
   },
   useRevisionStore: { getState: () => ({ registerEdit: vi.fn(), setRevision: vi.fn(), getRevision: vi.fn(() => null) }) },
   generateRevisionId: () => "rev-test-id",
-  useLargeFileSessionStore: { getState: () => ({ isForcedSource: () => false }), subscribe: () => () => {} },
+  useLargeFileSessionStore: { getState: () => ({ isForcedSource: () => false, forcedSourceReason: () => undefined }), subscribe: () => () => {} },
   useUnifiedHistoryStore: { getState: () => ({ documents: {}, createCheckpoint: vi.fn() }), subscribe: () => () => {} },
   useLintStore: { getState: () => ({ diagnosticsByTab: {}, selectedIndexByTab: {}, clearDiagnostics: vi.fn() }), subscribe: () => () => {} },
   useFileLoadStore: { getState: () => ({ active: false }) },

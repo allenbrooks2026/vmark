@@ -18,7 +18,8 @@
  * the spec gates on the (already-nasty, small) spec corpora.
  *
  * Protocol: one JSON line per completed case on stdout
- * (`{"name","parseMs","serializeMs"}`), `{"done":true}` at the end. The
+ * (`{"name","parseMs","serializeMs"}`, or `{"name","refusedMs","refusedDepth"}`
+ * for a nesting refusal), `{"done":true}` at the end. The
  * PARENT owns all judgement; a case that hangs simply never prints, and the
  * last-started name (printed BEFORE running) identifies the culprit.
  *
@@ -30,9 +31,9 @@
 import { getSchema } from "@tiptap/core";
 import StarterKit from "@tiptap/starter-kit";
 import "../../dialect";
-import { parseMarkdown, serializeMarkdown } from "../../adapter";
-import { isNestingTooDeep } from "../../nestingDepth";
-import { pathologicalCases } from "./pathologicalCases";
+import { serializeMarkdown } from "../../adapter";
+import { parseArbitraryMarkdown } from "@/test/arbitraryMarkdown";
+import { pathologicalCases, pathologicalScale } from "./pathologicalCases";
 
 if (process.env.HANG_PROBE === "1") {
   console.log(JSON.stringify({ name: "hang-probe", starting: true }));
@@ -41,32 +42,30 @@ if (process.env.HANG_PROBE === "1") {
   }
 }
 
-const scale = Number(process.env.PATHOLOGICAL_SCALE ?? "1");
+const scale = pathologicalScale();
 const schema = getSchema([StarterKit]);
 
 for (const testCase of pathologicalCases(scale)) {
   console.log(JSON.stringify({ name: testCase.name, starting: true }));
   const t0 = performance.now();
-  let doc;
-  try {
-    doc = parseMarkdown(schema, testCase.markdown);
-  } catch (error) {
-    // A nesting refusal is a PASS here, and the only tolerated throw. This
-    // suite's contract is liveness — no hang, no stack overflow — and the
-    // guard added for #1374 satisfies it deliberately rather than by luck.
-    // At scale 1 `deep-blockquotes` is 500 levels and parses; at the soak's
-    // scale 8 it is 4000 and is refused. Any OTHER error still propagates and
-    // fails the run, which is what keeps this from swallowing real defects.
-    if (!isNestingTooDeep(error)) throw error;
+  // A nesting refusal is a defined outcome here, and the only tolerated one.
+  // This suite's contract is liveness — no hang, no stack overflow — and the
+  // guard added for #1374 satisfies it deliberately rather than by luck. At
+  // scale 1 `deep-blockquotes` is 500 levels and parses; at the soak's scale 8
+  // it is 4000 and is refused. Any OTHER error still propagates and fails the
+  // run. The PARENT decides whether a refusal was expected for this case.
+  const outcome = parseArbitraryMarkdown(schema, testCase.markdown);
+  if (outcome.kind === "refused") {
     console.log(
       JSON.stringify({
         name: testCase.name,
         refusedMs: Math.round(performance.now() - t0),
-        refused: "nesting",
+        refusedDepth: outcome.refusal.depth,
       }),
     );
     continue;
   }
+  const doc = outcome.doc;
   const parseMs = performance.now() - t0;
   let serializeMs = 0;
   if (testCase.serialize) {

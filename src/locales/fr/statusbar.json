@@ -99,5 +99,6 @@
   "scrollTabsRight": "Faire défiler les onglets vers la droite",
   "terminal.sessionExited": "{{name}} (terminé)",
   "terminal.backgroundActivity": "Activité en arrière-plan",
-  "terminal.noWorkspaceSession": "Ouvrez un dossier ou enregistrez votre fichier pour utiliser le terminal"
+  "terminal.noWorkspaceSession": "Ouvrez un dossier ou enregistrez votre fichier pour utiliser le terminal",
+  "unparseable.openedInSourceMode": "Ouvert en mode Source (impossible à afficher en WYSIWYG)."
 }

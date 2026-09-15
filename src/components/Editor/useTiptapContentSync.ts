@@ -64,7 +64,7 @@ export function useTiptapContentSync({
     if (!editorInitialized.current) return;
 
     const synced = syncMarkdownToEditor(
-      editor, content, lastExternalContent, preserveLineBreaksRef.current,
+      editor, content, lastExternalContent, preserveLineBreaksRef.current, activeTabId,
     );
 
     // For fresh document load (no saved cursor position), set cursor to start
@@ -94,7 +94,7 @@ export function useTiptapContentSync({
     if (!editor || !editorInitialized.current) return;
 
     syncMarkdownToEditor(
-      editor, content, lastExternalContent, preserveLineBreaksRef.current,
+      editor, content, lastExternalContent, preserveLineBreaksRef.current, activeTabId,
     );
 
     // A markdown-split preview only needs the content sync — it must not steal

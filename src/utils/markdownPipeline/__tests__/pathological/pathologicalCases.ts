@@ -21,6 +21,19 @@ export interface PathologicalCase {
   markdown: string;
   /** Also run the parse→ProseMirror→markdown leg. */
   serialize: boolean;
+  /**
+   * How deeply the input nests CONTAINERS (blockquotes, lists), stated from
+   * the generator rather than measured by the guard — so a case above
+   * `MAX_NESTING_DEPTH` is one the parent EXPECTS to be refused, and a refusal
+   * of any other case is a failure rather than a quiet pass.
+   */
+  containerDepth: number;
+}
+
+/** The scale a run uses: `PATHOLOGICAL_SCALE`, read in ONE place so the child
+ *  that generates the inputs and the parent that judges them cannot disagree. */
+export function pathologicalScale(): number {
+  return Number(process.env.PATHOLOGICAL_SCALE ?? "1");
 }
 
 export function pathologicalCases(scale = 1): PathologicalCase[] {
@@ -35,46 +48,55 @@ export function pathologicalCases(scale = 1): PathologicalCase[] {
       name: "nested-brackets",
       markdown: `${"[".repeat(n(2000))}a${"]".repeat(n(2000))}\n`,
       serialize: true,
+      containerDepth: 0,
     },
     {
       name: "nested-strong-emph",
       markdown: `${"*a **a ".repeat(n(300))}b${" a** a*".repeat(n(300))}\n`,
       serialize: true,
+      containerDepth: 0,
     },
     {
       name: "emph-closers-without-openers",
       markdown: `${"a_ ".repeat(n(3000))}\n`,
       serialize: true,
+      containerDepth: 0,
     },
     {
       name: "emph-openers-without-closers",
       markdown: `${"_a ".repeat(n(3000))}\n`,
       serialize: true,
+      containerDepth: 0,
     },
     {
       name: "link-closers-with-openers",
       markdown: `${"a](".repeat(n(3000))}\n`,
       serialize: true,
+      containerDepth: 0,
     },
     {
       name: "backtick-runs",
       markdown: `${backtickRuns(n(250))}\n`,
       serialize: true,
+      containerDepth: 0,
     },
     {
       name: "unclosed-inline-links",
       markdown: `${"[a](<b".repeat(n(2000))}\n`,
       serialize: true,
+      containerDepth: 0,
     },
     {
       name: "deep-blockquotes",
       markdown: `${"> ".repeat(n(500))}a\n`,
       serialize: true,
+      containerDepth: n(500),
     },
     {
       name: "deep-lists",
       markdown: Array.from({ length: n(200) }, (_, i) => `${"  ".repeat(i)}- a`).join("\n") + "\n",
       serialize: true,
+      containerDepth: n(200),
     },
     {
       // Deep mdast NESTING (not just long delimiter runs): alternating
@@ -84,6 +106,7 @@ export function pathologicalCases(scale = 1): PathologicalCase[] {
       name: "deep-inline-nesting",
       markdown: `${"*_".repeat(n(1500))}x${"_*".repeat(n(1500))}\n`,
       serialize: true,
+      containerDepth: 0,
     },
     {
       name: "many-link-references",
@@ -91,6 +114,7 @@ export function pathologicalCases(scale = 1): PathologicalCase[] {
         Array.from({ length: n(1000) }, (_, i) => `[ref${i}]: /url${i}`).join("\n") +
         `\n\n${Array.from({ length: n(1000) }, (_, i) => `[ref${i}]`).join(" ")}\n`,
       serialize: true,
+      containerDepth: 0,
     },
   ];
 }

@@ -36,4 +36,27 @@ describe("documentStore", () => {
     useLargeFileSessionStore.getState().markForcedSource("tab-1");
     expect(Object.keys(useLargeFileSessionStore.getState().forcedSourceTabs)).toEqual(["tab-1"]);
   });
+
+  // #1407: the marker also lands a document the WYSIWYG parser refused, and the
+  // status line must say which — "(large file)" is wrong for a refusal.
+  it("markForcedSource defaults to the large-file reason, as every size caller means", () => {
+    useLargeFileSessionStore.getState().markForcedSource("tab-1");
+    expect(useLargeFileSessionStore.getState().forcedSourceReason("tab-1")).toBe("large-file");
+  });
+
+  it("records an unparseable document as its own reason, per tab", () => {
+    const s = useLargeFileSessionStore.getState();
+    s.markForcedSource("tab-1", "unparseable");
+    s.markForcedSource("tab-2");
+    expect(useLargeFileSessionStore.getState().isForcedSource("tab-1")).toBe(true);
+    expect(useLargeFileSessionStore.getState().forcedSourceReason("tab-1")).toBe("unparseable");
+    expect(useLargeFileSessionStore.getState().forcedSourceReason("tab-2")).toBe("large-file");
+  });
+
+  it("has no reason for a tab that is not forced, including after clearing", () => {
+    expect(useLargeFileSessionStore.getState().forcedSourceReason("tab-1")).toBeUndefined();
+    useLargeFileSessionStore.getState().markForcedSource("tab-1", "unparseable");
+    useLargeFileSessionStore.getState().clearForcedSource("tab-1");
+    expect(useLargeFileSessionStore.getState().forcedSourceReason("tab-1")).toBeUndefined();
+  });
 });

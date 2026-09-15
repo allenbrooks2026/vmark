@@ -339,5 +339,7 @@
   "splitPane.warningCount_other": "{{count}} 個警告",
   "splitPane.infoCount_one": "{{count}} 個提示",
   "splitPane.infoCount_other": "{{count}} 個提示",
-  "toc.empty": "沒有標題"
+  "toc.empty": "沒有標題",
+  "unparseable.tooDeeplyNested": "此文件巢狀了 {{depth}} 層，WYSIWYG 模式最多支援 {{limit}} 層，因此已以原始碼模式開啟。",
+  "unparseable.parseFailed": "此文件無法在 WYSIWYG 模式下顯示，因此已以原始碼模式開啟。"
 }

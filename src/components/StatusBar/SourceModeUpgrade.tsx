@@ -2,9 +2,11 @@
  * Source Mode Upgrade Offer
  *
  * Purpose: Appears in the StatusBar when the active tab was auto-routed to
- * Source mode because of file size. Lets the user explicitly opt into
- * WYSIWYG — clicking the link flips the mode, clears the marker, and the
- * upgrade offer disappears.
+ * Source mode — because of file size, or because the WYSIWYG parser refused
+ * the document (#1407); the label names which. Lets the user explicitly opt
+ * into WYSIWYG — clicking the link flips the mode, clears the marker, and the
+ * upgrade offer disappears. (A refused document is simply refused again, with
+ * a message, until its nesting is reduced.)
  *
  * Visible only when:
  *   - The active tab is in `useLargeFileSessionStore.forcedSourceTabs`.
@@ -16,7 +18,7 @@
  *     already toggled back to WYSIWYG manually, suppress the offer).
  *
  * @coordinates-with stores/documentStore/largeFileSession.ts — reads the marker set.
- * @coordinates-with stores/editorStore.ts — flips sourceMode on click.
+ * @coordinates-with services/history/unifiedHistory.ts — the mode toggle, when the window is in Source mode.
  * @coordinates-with stores/tabStore.ts — reads activeTabId via useTabStore.
  * @coordinates-with stores/documentStore.ts — reads filePath for YAML check.
  * @module components/StatusBar/SourceModeUpgrade
@@ -27,6 +29,8 @@ import { useTranslation } from "react-i18next";
 import { useTabStore } from "@/stores/tabStore";
 import { useLargeFileSessionStore } from "@/stores/documentStore";
 import { useDocumentStore } from "@/stores/documentStore";
+import { useUIStore } from "@/stores/uiStore";
+import { toggleSourceModeWithCheckpoint } from "@/services/history/unifiedHistory";
 import { isYamlFileName } from "@/utils/dropPaths";
 import { useWindowLabel } from "@/contexts/WindowContext";
 
@@ -35,9 +39,10 @@ export function SourceModeUpgrade() {
   const windowLabel = useWindowLabel();
   const activeTabId = useTabStore((s) => s.activeTabId[windowLabel] ?? null);
   /* v8 ignore next 3 -- @preserve defensive `!activeTabId` fallback is not exercised — the StatusBar always has an active tab in tests */
-  const isForcedSource = useLargeFileSessionStore((s) =>
-    activeTabId ? Boolean(s.forcedSourceTabs[activeTabId]) : false
+  const forcedReason = useLargeFileSessionStore((s) =>
+    activeTabId ? s.forcedSourceTabs[activeTabId] : undefined
   );
+  const isForcedSource = forcedReason !== undefined;
   const activeFilePath = useDocumentStore((s) =>
     activeTabId ? s.documents[activeTabId]?.filePath ?? null : null,
   );
@@ -47,14 +52,18 @@ export function SourceModeUpgrade() {
     ? isYamlFileName(activeFilePath.split(/[\\/]/).pop() ?? "")
     : false;
 
-  // The "Switch to WYSIWYG" action clears only this tab's forced-source
-  // marker. The Editor treats the marker as a per-tab override layered on
-  // top of the window-global sourceMode, so other tabs in the same window
-  // keep their mode. Global sourceMode is not flipped.
+  // The "Switch to WYSIWYG" action clears this tab's forced-source marker —
+  // a per-tab override layered on top of the window-global sourceMode. If the
+  // window is ALSO in Source mode (turned on from another tab, say), lifting
+  // the marker alone switches nothing, so the button did nothing visible
+  // (#1407 audit). The ordinary mode toggle then turns the window's Source
+  // mode off, with its checkpoint and per-tab mode record; other tabs keep
+  // their own mode through that record when they are next shown.
   const handleUpgrade = useCallback(() => {
     if (!activeTabId) return;
     useLargeFileSessionStore.getState().clearForcedSource(activeTabId);
-  }, [activeTabId]);
+    if (useUIStore.getState().sourceMode) toggleSourceModeWithCheckpoint(windowLabel);
+  }, [activeTabId, windowLabel]);
 
   if (!isForcedSource) return null;
   // YAML files are forced-source for correctness, not size. Switching
@@ -66,7 +75,9 @@ export function SourceModeUpgrade() {
   return (
     <div className="status-source-upgrade" role="status" aria-live="polite">
       <span className="status-source-upgrade__label">
-        {t("largeFile.openedInSourceMode")}
+        {forcedReason === "unparseable"
+          ? t("unparseable.openedInSourceMode")
+          : t("largeFile.openedInSourceMode")}
       </span>
       <button
         type="button"

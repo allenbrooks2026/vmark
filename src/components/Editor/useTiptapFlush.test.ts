@@ -25,11 +25,18 @@ vi.mock("@/utils/markdownPipeline", () => ({
 import { useSettingsStore } from "@/stores/settingsStore";
 import { useTabStore } from "@/stores/tabStore";
 
-vi.mock("@/stores/documentStore", () => ({
+vi.mock("@/stores/documentStore", async () => ({
   useDocumentStore: { getState: () => ({ getDocument: () => ({ hardBreakStyle: "unknown" }) }) },
+  // The REAL forced-Source marker: the refusal guard below reads it.
+  useLargeFileSessionStore: (
+    await vi.importActual<typeof import("@/stores/documentStore/largeFileSession")>(
+      "@/stores/documentStore/largeFileSession",
+    )
+  ).useLargeFileSessionStore,
 }));
 
 import { useTiptapFlush } from "./useTiptapFlush";
+import { useLargeFileSessionStore } from "@/stores/documentStore";
 
 /** Minimal editor stand-in — the flush only reads schema/state.doc. */
 const editor = {
@@ -37,10 +44,14 @@ const editor = {
   state: { doc: { content: { size: 10 } } },
 } as unknown as TiptapEditor;
 
+/** `tab: null` passes NO activeTabId. A defaulted parameter cannot express that:
+ *  an explicit `undefined` argument takes the default, so the tab-store fallback
+ *  was never reached by the test that claimed to watch it. */
 function setup(
   setContent: (md: string, opts?: { fromUserEdit?: boolean }) => void,
-  activeTabId: string | undefined = "tab-1",
+  tab: string | null = "tab-1",
 ) {
+  const activeTabId = tab ?? undefined;
   return renderHook(() =>
     useTiptapFlush({
       activeTabId,
@@ -62,6 +73,7 @@ beforeEach(() => {
     markdown: { ...useSettingsStore.getState().markdown, preserveBlankLines: false },
   });
   useTabStore.setState({ activeTabId: { main: "tab-1" } });
+  useLargeFileSessionStore.setState({ forcedSourceTabs: {} });
   vi.useFakeTimers();
   vi.clearAllMocks();
   vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
@@ -148,7 +160,7 @@ describe("flushToStore user-edit reporting", () => {
   it("falls back to the tab store's active tab when no activeTabId is passed", async () => {
     const { serializeMarkdown } = await import("@/utils/markdownPipeline");
     useTabStore.setState({ activeTabId: { main: "tab-from-store" } });
-    const { result } = setup(vi.fn(), undefined);
+    const { result } = setup(vi.fn(), null);
 
     result.current.flushToStore(editor);
 
@@ -156,5 +168,57 @@ describe("flushToStore user-edit reporting", () => {
     // produced a resolved hardBreakStyle rather than bailing on a missing tab.
     expect(vi.mocked(serializeMarkdown)).toHaveBeenCalled();
     expect(vi.mocked(serializeMarkdown).mock.calls.at(-1)?.[2]).toHaveProperty("hardBreakStyle");
+  });
+});
+
+// #1407: once the editor has failed to parse its tab's document, what it holds
+// is NOT that document — it is empty (initial load) or stale (a refused external
+// change). Any write from it would overwrite the real text: the pending edit's
+// debounce, Save's flush, and the unmount flush that runs as the tab switches to
+// Source mode. Reproduced by the audit as the store ending up "stale edit".
+describe("flushToStore after the tab's document was refused", () => {
+  it("writes nothing — not a scheduled edit, not a save or unmount flush", () => {
+    const setContent = vi.fn();
+    const { result } = setup(setContent);
+
+    result.current.scheduleFlush(editor); // a keystroke is pending
+    useLargeFileSessionStore.getState().markForcedSource("tab-1", "unparseable");
+    result.current.flushToStore(editor);
+    vi.runAllTimers();
+
+    expect(setContent).not.toHaveBeenCalled();
+  });
+
+  it("still writes for a tab in Source mode only because it is large", () => {
+    const setContent = vi.fn();
+    const { result } = setup(setContent);
+
+    useLargeFileSessionStore.getState().markForcedSource("tab-1", "large-file");
+    result.current.flushToStore(editor);
+
+    expect(setContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("writes again once the refusal is cleared", () => {
+    const setContent = vi.fn();
+    const { result } = setup(setContent);
+
+    useLargeFileSessionStore.getState().markForcedSource("tab-1", "unparseable");
+    result.current.flushToStore(editor);
+    useLargeFileSessionStore.getState().clearForcedSource("tab-1");
+    result.current.flushToStore(editor);
+
+    expect(setContent).toHaveBeenCalledTimes(1);
+  });
+
+  it("guards the tab-store fallback too", () => {
+    const setContent = vi.fn();
+    useTabStore.setState({ activeTabId: { main: "tab-from-store" } });
+    const { result } = setup(setContent, null);
+
+    useLargeFileSessionStore.getState().markForcedSource("tab-from-store", "unparseable");
+    result.current.flushToStore(editor);
+
+    expect(setContent).not.toHaveBeenCalled();
   });
 });
