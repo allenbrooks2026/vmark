@@ -1,0 +1,18 @@
+# Shell scripts keep LF line endings on every checkout, on every platform.
+#
+# Git for Windows installs with core.autocrlf=true, which rewrites text files to
+# CRLF on checkout. Bash reads the trailing \r as part of each line, so a CRLF
+# script dies on its first real statement:
+#   line 6: $'\r': command not found
+#   line 7: set: pipefail: invalid option name
+# That broke every `bash scripts/*.sh` gate and all three git hooks for anyone
+# contributing from Windows, and it would ship CRLF in the terminal's shell
+# integration files. `eol=lf` overrides autocrlf per path, so these stay LF
+# whatever the local git config says. Everything else keeps git's defaults.
+#
+# scripts/shell-script-eol.test.mjs fails if a tracked shell script (found by
+# extension OR by shebang) is not covered here.
+*.sh text eol=lf
+*.bash text eol=lf
+*.zsh text eol=lf
+.githooks/* text eol=lf

@@ -266,23 +266,11 @@ fn canonical_fixtures() -> serde_json::Value {
 fn frontend_wire_fixture_stays_in_sync() {
     let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../src/test/fixtures/commandErrorWire.json");
-    // cargo-mutants copies ONLY the crate into its sandbox, so the frontend
-    // tree this bond reaches into does not exist there and the BASELINE run
-    // failed with exit 4 (mutation.yml runs 30889201743 AND 30891869767 —
-    // the second because a CARGO_MUTANTS env guard never fired: the variable
-    // is NOT set in the baseline environment; measured, not assumed).
-    // The deterministic marker is compile-time: inside the sandbox,
-    // env!("CARGO_MANIFEST_DIR") is the sandbox copy itself
-    // (/tmp/cargo-mutants-<name>-XXXX.tmp/), so its path contains
-    // "cargo-mutants". Skip only there AND only when the fixture is genuinely
-    // absent — a deleted fixture still fails plain `cargo test`, and mutation
-    // coverage for this module comes from the other tests in this file.
-    let in_mutants_sandbox = env!("CARGO_MANIFEST_DIR").contains("cargo-mutants")
-        || std::env::var_os("CARGO_MUTANTS").is_some();
-    if in_mutants_sandbox && !path.exists() {
-        eprintln!("skipping frontend-fixture bond: cargo-mutants sandbox has no frontend tree");
-        return;
-    }
+    // This reads OUTSIDE the crate, like several other bonds in this suite.
+    // cargo-mutants therefore runs `--in-place` (mutation.yml, pinned by
+    // scripts/check-mutation-in-place.test.mjs): a copied sandbox holds only
+    // src-tauri/, and a per-test "am I in the sandbox?" skip here is what hid
+    // the class until a second bond broke the baseline (#1210, #1409).
     let generated = canonical_fixtures();
 
     if std::env::var("UPDATE_FIXTURES").as_deref() == Ok("1") {
