@@ -36,11 +36,8 @@ import { remarkCustomInline, remarkDetailsBlock, remarkWikiLinks, tocToMarkdown 
 import { handleImage, handleLink, blankLinesJoin } from "./serializerHandlers";
 import type { MarkdownPipelineOptions } from "./types";
 import { parseMarkdownToMdast } from "./parser";
-import {
-  applyCosmeticPass,
-  buildCodeRanges,
-  replaceOutsideCode,
-} from "./serializerCosmetics";
+import { applyCosmeticPass } from "./serializerCosmetics";
+import { buildCodeRanges, replaceOutsideCode } from "./serializerCodeRanges";
 
 /**
  * Build the unified processor configured for VMark markdown serialization.

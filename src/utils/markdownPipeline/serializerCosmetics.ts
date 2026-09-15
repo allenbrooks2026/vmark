@@ -10,10 +10,12 @@
  *
  * @coordinates-with serializer.ts — the only caller
  * @coordinates-with parser.ts — the re-parse used to verify each edit
+ * @coordinates-with serializerCodeRanges.ts — where edits must not reach
  * @module utils/markdownPipeline/serializerCosmetics
  */
 
 import { parseMarkdownToMdast } from "./parser";
+import { buildCodeRanges, isInsideCodeRange } from "./serializerCodeRanges";
 
 /**
  * Strip unnecessary backslash escapes added by remark-stringify.
@@ -60,79 +62,6 @@ export const BLOCK_START_GUARD: ReadonlySet<string> = new Set(
   [...BLOCK_START_CHARS].filter((c) => UNESCAPABLE_CHARS.has(c)),
 );
 
-/**
- * Build sorted, merged character ranges for fenced code blocks and inline
- * code spans. Ranges are non-overlapping and sorted by start, enabling
- * O(log N) `isInsideCode` lookups during escape processing.
- */
-export function buildCodeRanges(markdown: string): Array<[number, number]> {
-  const raw: Array<[number, number]> = [];
-  const fenceRe = /^(`{3,}|~{3,}).*\n([\s\S]*?\n)\1\s*$/gm;
-  let fm: RegExpExecArray | null;
-  while ((fm = fenceRe.exec(markdown))) {
-    raw.push([fm.index, fm.index + fm[0].length]);
-  }
-  // Only treat unescaped backticks as code-span boundaries. Without this,
-  // serialized plain text such as `[\`LICENSE\`]\(./LICENSE).` would falsely
-  // register `\`LICENSE\`` as an inline code range, blocking later escape
-  // stripping on the contained `\``.
-  const inlineRe = /(?<!\\)`[^`]+?(?<!\\)`/g;
-  let im: RegExpExecArray | null;
-  while ((im = inlineRe.exec(markdown))) {
-    raw.push([im.index, im.index + im[0].length]);
-  }
-  if (raw.length <= 1) return raw;
-  raw.sort((a, b) => a[0] - b[0]);
-  const merged: Array<[number, number]> = [raw[0]];
-  for (let i = 1; i < raw.length; i++) {
-    const last = merged[merged.length - 1];
-    const [s, e] = raw[i];
-    if (s <= last[1]) {
-      if (e > last[1]) last[1] = e;
-    } else {
-      merged.push([s, e]);
-    }
-  }
-  return merged;
-}
-
-/**
- * Binary-search a sorted, non-overlapping ranges array for whether `offset`
- * falls inside any range. O(log N) vs the previous O(N) `Array.some`.
- */
-function isInsideCodeRange(
-  ranges: Array<[number, number]>,
-  offset: number
-): boolean {
-  let lo = 0;
-  let hi = ranges.length - 1;
-  while (lo <= hi) {
-    const mid = (lo + hi) >> 1;
-    const [s, e] = ranges[mid];
-    if (s <= offset) {
-      if (offset < e) return true;
-      lo = mid + 1;
-    } else {
-      hi = mid - 1;
-    }
-  }
-  return false;
-}
-
-/** Apply a regex replacement only outside code blocks and inline code. */
-export function replaceOutsideCode(
-  markdown: string,
-  re: RegExp,
-  replacement: string,
-  ranges: Array<[number, number]>
-): string {
-  return markdown.replace(re, (match, ...args) => {
-    const offset = args[args.length - 2] as number;
-    if (isInsideCodeRange(ranges, offset)) return match;
-    return match.replace(re, replacement);
-  });
-}
-
 /** One pending cosmetic replacement on the serialized string. */
 interface CosmeticEdit {
   start: number;
@@ -177,21 +106,34 @@ function collectEntityEdits(
   return edits;
 }
 
-/** Collect candidate escape strips, applying the same guards as before. */
+/**
+ * Collect candidate escape strips, applying the same guards as before.
+ *
+ * "Only whitespace before it on its line" is tracked in ONE forward pass. It
+ * was a `lastIndexOf` + `slice` per escape, which walks back to the line start
+ * each time — O(n²) on a long line of escapes, and every hostile inline class
+ * serializes to exactly that (#1407). `\s` is the set `trimStart` removes.
+ */
 function collectEscapeEdits(
   markdown: string,
   ranges: Array<[number, number]>
 ): CosmeticEdit[] {
   const edits: CosmeticEdit[] = [];
   const re = new RegExp(SAFE_UNESCAPE_RE.source, "g");
+  let scanned = 0;
+  let lineStart = 0;
+  let lastInk = -1; // last non-whitespace index before `scanned`
   let m: RegExpExecArray | null;
   while ((m = re.exec(markdown))) {
     const offset = m.index;
+    for (; scanned < offset; scanned += 1) {
+      const ch = markdown[scanned];
+      if (ch === "\n") lineStart = scanned + 1;
+      else if (!/\s/.test(ch)) lastInk = scanned;
+    }
     if (isInsideCodeRange(ranges, offset)) continue;
     const char = m[1];
-    const lineStart = markdown.lastIndexOf("\n", offset - 1) + 1;
-    const beforeOnLine = markdown.slice(lineStart, offset).trimStart();
-    if (beforeOnLine === "" && BLOCK_START_GUARD.has(char)) continue;
+    if (lastInk < lineStart && BLOCK_START_GUARD.has(char)) continue;
     edits.push({ start: offset, end: offset + 2, replacement: char });
   }
   return edits;
