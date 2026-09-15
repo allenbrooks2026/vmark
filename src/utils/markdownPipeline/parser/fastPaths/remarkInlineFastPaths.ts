@@ -35,7 +35,7 @@ import { inertLabelEnd } from "./labelEndFastPath";
 import type { SyntaxExtension } from "./micromarkTypes";
 
 /** The micromark syntax extension this plugin registers. */
-export const inlineFastPathsExtension: SyntaxExtension = {
+const inlineFastPathsExtension: SyntaxExtension = {
   text: {
     42: [attentionWithoutFutileWalks],
     93: [inertLabelEnd],

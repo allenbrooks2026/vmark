@@ -13,14 +13,24 @@
  *
  * So does this construct, registered ahead of `codeText`:
  *
- *   1. The FIRST opener in a paragraph scans to the end once, recording the
- *      start offset of the last run of each length, and then defers — so
- *      `codeText` runs exactly as before on that opener.
+ *   1. Until a memo exists, an opener scans exactly as far as `codeText` will:
+ *      to its first closing run, or to the end of the paragraph. It records
+ *      the start offset of the last run of each length on the way, and then
+ *      defers, so `codeText` runs exactly as before. Only a scan that reached
+ *      the end leaves its record behind as the memo.
  *   2. Every LATER opener of length k looks up the last run of length k. If it
  *      starts after the opener, `codeText` will close on some run of length k,
  *      so this defers. If not, `codeText` must fail, so the run is consumed as
  *      plain data — which is what the text tokenizer does with it anyway once
  *      `codeText` fails.
+ *
+ * Why never read further than `codeText`: a lookahead that crosses a line
+ * ending reaches a chunk the subtokenizer has not written yet, and the
+ * container skip it defines on the next line is then applied to the lookahead's
+ * point instead of the real one. That moved a text node's end by a column in a
+ * list continuation (audit counterexample: `*<TAB>` then two lines of code spans).
+ * The skipped scans in step 2 cannot do the same: a memo exists only after a
+ * scan reached the end, and by then every chunk and every skip is in place.
  *
  * Why the memo is exact: `codeText` closes on the first MAXIMAL run of exactly
  * the opener's length after the opener, and nothing inside a code span can end
@@ -124,6 +134,9 @@ function tokenizeInertCodeTextSequence(
       runSize += 1;
       return scanRun;
     }
+    // A closing run: `codeText` will stop here, so stop here too, and leave no
+    // memo — a scan must never read further than `codeText`'s own would.
+    if (runSize === size) return nok(code);
     recording.lastStart.set(runSize, runStart);
     return scanBetween(code);
   }

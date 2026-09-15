@@ -44,8 +44,14 @@ const fast = unified()
   .use(remarkMath)
   .use(remarkFrontmatter, ["yaml"]);
 
+/** What the comparison needs from a processor: parsing, and nothing else. */
+interface Parses {
+  parse(markdown: string): unknown;
+  data(): unknown;
+}
+
 /** The syntax tree with positions, as a comparable string. */
-function tree(processor: typeof stock, markdown: string): string {
+function tree(processor: Parses, markdown: string): string {
   return JSON.stringify(processor.parse(markdown));
 }
 
@@ -80,6 +86,9 @@ const BACKTICK_BOUNDARIES = [
   "` a`b` `", "> `a\n> b`", "`a`\n\n`b`", "`é`", "``中``", "`\t`", "`a` ``b`` `c", "``a` `b``",
   "`a\\`b`", "\\`\\``a`", "e`e``e```e``e`", "`", "``", "a`", "`\n`", "- `a\n  b`",
   "| `a | b` |\n|---|---|\n| `c` | d |", "<code>`</code>`", "[`](`)", "*`a*`",
+  // Container continuations: a lookahead reading past the line ending moved a
+  // text node's end by a column (audit counterexamples).
+  "*\t`x`\n\t`x`", "1. \n\t]]\n  `x`_\n\t`x`", "> `a`\n> `b`\n> `", "- `a\n\t`b`\n  ``c",
 ];
 
 const EMPHASIS_BOUNDARIES = [
@@ -128,13 +137,13 @@ describe("inline fast paths leave every parse unchanged (#1407)", () => {
         };
       },
     };
-    const withCatchAll = <T extends typeof stock>(processor: T): T => {
+    const withCatchAll = (processor: Parses): Parses => {
       const data = processor.data() as { micromarkExtensions?: unknown[] };
       (data.micromarkExtensions ??= []).push({ text: { null: [claimsBracketsAndBackticks] } });
       return processor;
     };
-    const stockWith = withCatchAll(unified().use(remarkParse).use(remarkGfm, { singleTilde: false }) as typeof stock);
-    const fastWith = withCatchAll(unified().use(remarkParse).use(remarkGfm, { singleTilde: false }).use(remarkInlineFastPaths) as typeof stock);
+    const stockWith = withCatchAll(unified().use(remarkParse).use(remarkGfm, { singleTilde: false }));
+    const fastWith = withCatchAll(unified().use(remarkParse).use(remarkGfm, { singleTilde: false }).use(remarkInlineFastPaths));
     for (const markdown of ["a ] b", "a ` b", "a](a](", "e`e``e```", "*a*"]) {
       expect(tree(fastWith, markdown), JSON.stringify(markdown)).toBe(tree(stockWith, markdown));
     }

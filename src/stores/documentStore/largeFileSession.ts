@@ -16,7 +16,7 @@ import { create } from "zustand";
  * - `unparseable`: the WYSIWYG parser refused the document (for example it
  *   nests past the limit), so WYSIWYG would be a blank editor.
  */
-export type ForcedSourceReason = "large-file" | "unparseable";
+type ForcedSourceReason = "large-file" | "unparseable";
 
 interface LargeFileSessionState {
   /** Tab IDs that were auto-opened in Source mode, with the reason. */
