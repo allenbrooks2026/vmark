@@ -185,6 +185,19 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
 
+      - name: Dry run, listing EVERY failing test (Stryker)
+        # The mutation run below bails its dry run at the FIRST failing test
+        # (the vitest runner passes `bail: 1` unless `disableBail`), so a red
+        # baseline is discovered one test per weekly run: run 34812562007
+        # named one of the three failing files. This dry run does not bail, so
+        # it names them all in one pass. Its price is one extra green dry run a
+        # week (8m04s in run 34089856980). `disableBail` stays out of
+        # stryker.config.json on purpose: it applies to every mutant run too,
+        # where stopping at the first kill is the speed. The config is named
+        # explicitly here and in `mutation:ts`: with no argument Stryker
+        # discovers one, and tries `stryker.conf.*` before `stryker.config.*`.
+        run: pnpm exec stryker run stryker.config.json --dryRunOnly --disableBail
+
       - name: Run scoped mutation testing (Stryker)
         # Scope is defined in stryker.config.json (mutate globs).
         run: pnpm mutation:ts
