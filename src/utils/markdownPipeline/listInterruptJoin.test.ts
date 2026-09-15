@@ -74,6 +74,16 @@ describe("nested list after a paragraph in a list item", () => {
     expect(markdown).toBe(`- b\n\n  ${start}. c\n`);
   });
 
+  // An item whose text begins with a line ending also starts with a blank
+  // line: the serializer writes the character raw, so the marker line is
+  // empty. Found by the branch's cross-model audit.
+  it.each(["&#10;x", "&#13;x", "&#10;"])("keeps a nested item whose text starts with %s", (content) => {
+    const source = `- b\n  1. ${content}\n`;
+    const doc = parseMarkdown(schema, source);
+    const { back, want } = roundTrip(doc);
+    expect(back).toEqual(want);
+  });
+
   // The rule is narrow on purpose: a list that CAN interrupt keeps the tight
   // spelling authors wrote, so no existing document gains blank lines.
   it("leaves a list that can interrupt the paragraph tight", () => {
