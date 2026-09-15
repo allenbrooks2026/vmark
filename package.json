@@ -218,6 +218,10 @@
       "js-yaml@4": ">=4.3.2 <5",
       "baseline-browser-mapping": ">=2.11.0 <3",
       "smol-toml": ">=1.7.1 <2"
+    },
+    "patchedDependencies": {
+      "micromark@4.0.2": "patches/micromark@4.0.2.patch",
+      "mdast-util-to-markdown@2.1.2": "patches/mdast-util-to-markdown@2.1.2.patch"
     }
   },
   "devDependencies": {
