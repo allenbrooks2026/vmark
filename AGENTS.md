@@ -552,6 +552,36 @@ Shared instructions for all AI agents (Claude, Codex, etc.).
     file would be minutes for nothing. Measured clean on adoption, so it is a
     hard failure with no allowlist.
 
+  - **The markdown parser's hostile-input cost is linear, and three layers keep
+    it that way (#1407).** The weekly pathological soak never got past its fifth
+    input class: `a](` × 24000 took 60s to parse and 276s to serialize, and
+    `backtick-runs` ran over twelve minutes. Every cause was an O(n²) or worse
+    walk inside micromark or mdast-util-to-markdown (latest releases), plus one
+    in VMark's own escape scan.
+
+    - `src/utils/markdownPipeline/parser/fastPaths/` — micromark constructs that
+      settle `]` and backtick runs nothing can close, acting only on a PROOF
+      that micromark's own construct would fail, plus micromark's emphasis
+      resolver ported with a per-marker opener list in place of its event
+      walk. `inlineFastPaths.test.ts` diffs the mdast, positions included,
+      against a parser without them over every spec corpus and a fuzz.
+    - `patches/` — `pnpm` patches for the two costs no extension API can reach
+      (micromark's data-token merge, mdast-util-to-markdown's escape lookup).
+      Each is a few lines, commented at the change. **A Dependabot bump of
+      either package fails install until the patch is re-made** (`pnpm patch`
+      → port the change → `pnpm patch-commit`), and that failure is the point:
+      a patch that silently stopped applying would bring the quadratic back.
+    - `__tests__/pathological/pathologicalScaling.test.ts` — asserts a CPU-time
+      growth EXPONENT per class in the PR tier, so a regression fails
+      `check:all` instead of waiting for the soak.
+
+    The whole scale-8 pathological run now takes ~11s (measured 10.8s idle).
+    Two classes stay super-linear, and are what is left of it:
+    `nested-strong-emph` (~5s — micromark re-resolves each matched span, and
+    each match splices the event list) and `nested-brackets` (~2s — label-end
+    serializes the label to look up a definition). Removing either changes
+    what the stock algorithm does, not how fast it finds it.
+
   - **i18n gate has two halves.** `pnpm lint:i18n` checks that every key exists in
     every locale AND that values were actually translated. The second half exists
     because the first cannot see a key copied over with its English value — ~1,160
