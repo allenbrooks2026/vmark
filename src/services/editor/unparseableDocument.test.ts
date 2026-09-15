@@ -3,10 +3,10 @@
  * #1407 — a document the WYSIWYG parser refuses must land in Source mode with
  * a message, never in a blank rich-text editor.
  *
- * Before this, the editor caught the parse failure, logged it with a dev-only
- * logger (a no-op in release builds) and carried on with an EMPTY document —
- * editable, and flushed to the store on the first keystroke, so typing into it
- * would have saved over the file the user just opened. A 16382-level corpus
+ * Before this, the editor caught the parse failure, logged it to the console
+ * and carried on with an EMPTY document — editable, and flushed to the store on
+ * the first keystroke, so typing into it would have saved over the file the
+ * user just opened. A 16382-level corpus
  * file refused by the nesting guard (#1374) takes exactly that path.
  *
  * @coordinates-with unparseableDocument.ts
@@ -71,11 +71,13 @@ describe("reportUnparseableDocument", () => {
     expect(mockToastError).toHaveBeenCalledTimes(1);
   });
 
-  it("does not relabel a tab already in Source mode for its size", () => {
+  it("re-marks a tab already in Source mode for its size, without a second toast", () => {
+    // The user is already looking at Source mode, so no toast. But the reason
+    // must become the refusal: it is what stops the refused editor's writes.
     useLargeFileSessionStore.getState().markForcedSource("tab-1", "large-file");
     reportUnparseableDocument("tab-1", refusalFromParser(MAX_NESTING_DEPTH + 1));
 
-    expect(useLargeFileSessionStore.getState().forcedSourceReason("tab-1")).toBe("large-file");
+    expect(useLargeFileSessionStore.getState().forcedSourceReason("tab-1")).toBe("unparseable");
     expect(mockToastError).not.toHaveBeenCalled();
   });
 

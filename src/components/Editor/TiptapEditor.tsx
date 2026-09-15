@@ -219,7 +219,7 @@ export function TiptapEditorInner({ hidden = false, readOnly = false, preview = 
             );
           }
         } catch (error) {
-          reportUnparseableDocument(activeTabId, error); // Source mode + message, not a blank editor (#1407)
+          if (!hiddenRef.current) reportUnparseableDocument(activeTabId, error); // hidden: reports when shown (#1407)
           editorInitialized.current = true; // Unblock external sync even on parse error
         } finally {
           // Clear the "Opening large file…" StatusBar indicator once this

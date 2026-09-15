@@ -209,7 +209,7 @@ vi.mock("@/stores/documentStore", () => ({
   },
   useRevisionStore: { getState: () => ({ registerEdit: vi.fn(), setRevision: vi.fn(), getRevision: vi.fn(() => null) }) },
   generateRevisionId: () => "rev-test-id",
-  useLargeFileSessionStore: { getState: () => ({ isForcedSource: () => false }), subscribe: () => () => {} },
+  useLargeFileSessionStore: { getState: () => ({ isForcedSource: () => false, forcedSourceReason: () => undefined }), subscribe: () => () => {} },
   useUnifiedHistoryStore: { getState: () => ({ documents: {}, createCheckpoint: vi.fn() }), subscribe: () => () => {} },
   useLintStore: { getState: () => ({ diagnosticsByTab: {}, selectedIndexByTab: {}, clearDiagnostics: vi.fn() }), subscribe: () => () => {} },
   useFileLoadStore: { getState: () => ({ active: false }) },
@@ -432,6 +432,27 @@ describe("syncMarkdownToEditor — via onCreate", () => {
     // The failure reaches the user (and Source mode), with the real error so
     // a nesting refusal can say how deep the document was.
     expect(mocks.reportUnparseableDocument).toHaveBeenCalledWith("tab-1", failure);
+  });
+
+  it("does not report from a HIDDEN keep-alive editor — it reports when shown (#1407)", () => {
+    // A hidden instance shows the user nothing and takes no edits. Reporting
+    // from it would put a tab the user is reading in Source mode, with a toast,
+    // for a WYSIWYG view they have not asked for; its visibility sync re-parses
+    // and reports if they ever do.
+    const editor = createMockEditor();
+    mocks.useEditor.mockReturnValue(editor);
+    mocks.getTiptapEditorView.mockReturnValue(null);
+    mocks.reportUnparseableDocument.mockReset();
+    mocks.parseMarkdown.mockImplementation(() => { throw new Error("parse fail"); });
+
+    render(<TiptapEditorInner hidden={true} />);
+    const config = mocks.useEditor.mock.calls[mocks.useEditor.mock.calls.length - 1][0];
+    vi.useFakeTimers();
+    config.onCreate({ editor });
+    vi.runAllTimers();
+    vi.useRealTimers();
+
+    expect(mocks.reportUnparseableDocument).not.toHaveBeenCalled();
   });
 });
 

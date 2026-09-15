@@ -16,6 +16,8 @@
  *     hasn't run yet (#755).
  *   - scheduleFlush uses RAF for small docs (≤100ms tier) and a debounced
  *     timeout for large docs — see getAdaptiveDebounceDelay.
+ *   - A tab whose document the editor could not parse (#1407) gets no write
+ *     at all: the editor holds empty or stale content, not the document.
  *   - Every flush reports whether a USER edit is behind it (userEditPending,
  *     set by scheduleFlush). Auto-save and Save All flush before reading
  *     isDirty, so a flush that claimed to be an edit would dirty a document
@@ -33,7 +35,7 @@ import type { HardBreakStyleOnSave } from "@/utils/linebreakDetection";
 import { serializeMarkdown } from "@/utils/markdownPipeline";
 import { resolveHardBreakStyle } from "@/utils/linebreaks";
 import { useTabStore } from "@/stores/tabStore";
-import { useDocumentStore } from "@/stores/documentStore";
+import { useDocumentStore, useLargeFileSessionStore } from "@/stores/documentStore";
 import { useSettingsStore } from "@/stores/settingsStore";
 import { getAdaptiveDebounceDelay } from "./tiptapEditorHelpers";
 
@@ -91,13 +93,21 @@ export function useTiptapFlush(options: TiptapFlushOptions): TiptapFlushHandle {
         pendingRaf.current = null;
       }
 
+      const tabId = activeTabId ?? useTabStore.getState().activeTabId[windowLabel];
+      // This editor could not parse the tab's document (#1407), so what it
+      // holds is empty or stale — writing it would overwrite the real text.
+      // Covers the pending edit, Save's flush and the unmount flush alike.
+      if (tabId && useLargeFileSessionStore.getState().forcedSourceReason(tabId) === "unparseable") {
+        userEditPending.current = false;
+        return;
+      }
+
       const markdown = serializeMarkdown(editor.schema, editor.state.doc, {
         preserveLineBreaks: preserveLineBreaksRef.current,
         // Read directly from the store (no new ref threaded through the editor
         // chain); capture is unconditional, so toggling needs no reparse.
         preserveBlankLines: useSettingsStore.getState().markdown.preserveBlankLines,
         hardBreakStyle: (() => {
-          const tabId = activeTabId ?? useTabStore.getState().activeTabId[windowLabel];
           /* v8 ignore next -- @preserve reason: no active tabId only if tab store is uninitialized; always set during normal editor lifecycle */
           if (!tabId) return resolveHardBreakStyle("unknown", hardBreakStyleOnSaveRef.current);
           const doc = useDocumentStore.getState().getDocument(tabId);
