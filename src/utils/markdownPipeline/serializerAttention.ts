@@ -28,7 +28,8 @@
  * Why these are VMark's handlers rather than upstream's: upstream's emphasis
  * marker is one global option, and `delete` (mdast-util-gfm-strikethrough) does
  * no flanking at all. Neighbour encoding itself still happens in upstream's
- * `containerPhrasing`, driven by `attentionEncodeSurroundingInfo`.
+ * `containerPhrasing`, driven by `attentionEncodeSurroundingInfo`, which VMark
+ * patches to encode whole code points too (patches/mdast-util-to-markdown).
  *
  * @coordinates-with serializer.ts — installs these handlers
  * @coordinates-with markEdgeWhitespace.ts — moves edge whitespace out of `~~`,

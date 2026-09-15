@@ -29,7 +29,6 @@
 
 import { unified } from "unified";
 import remarkStringify from "remark-stringify";
-import { repairSplitSurrogateEntities } from "./serializerStrikethrough";
 import { handleDelete, handleEmphasis, handleStrong } from "./serializerAttention";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
@@ -117,12 +116,10 @@ export function serializeMdastToMarkdown(
 ): string {
   const processor = getSerializer();
   let result = processor.stringify(mdast);
-
-  // Correctness, not cosmetics: the attention-encoding that makes a delimiter
-  // flank splits an astral neighbour across its surrogate pair, destroying the
-  // character. Repaired here — before every other pass, and with no size
-  // ceiling.
-  result = repairSplitSurrogateEntities(result);
+  // No split-surrogate repair pass: attention neighbours are encoded as whole
+  // code points when they are encoded (serializerAttention.ts and the
+  // mdast-util-to-markdown patch), which a string repair afterwards could not
+  // do without changing what the delimiter beside them flanks.
 
   // A document-leading thematic break can serialize as `---` and then be
   // REPARSED as a frontmatter fence, swallowing structure (CommonMark
