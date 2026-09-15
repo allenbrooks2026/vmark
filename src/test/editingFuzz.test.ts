@@ -25,7 +25,9 @@
  * Budget: 25 runs × ≤40 ops (~1k transactions) — the roundtrip property
  * suite flaked at 200–300 CPU-bound runs under worker contention, so this
  * stays deliberately small in the PR tier; FUZZ_RUNS scales it in the soak.
- * Seed fixed for CI determinism; override with FUZZ_SEED to explore.
+ * Seed fixed for CI determinism; override with FUZZ_SEED to explore. Both are
+ * read with readIntegerEnv, so a value that is set but not an integer fails
+ * the file instead of running seed 0.
  *
  * Declared exclusion (measured): '[' is not in the text pools — autoPair's
  * bracket pairing plus link-reference parsing has a known escape-growth
@@ -42,6 +44,7 @@ import type { Node as PmNode } from "@tiptap/pm/model";
 import { TextSelection } from "@tiptap/pm/state";
 import { parseMarkdown, serializeMarkdown } from "@/utils/markdownPipeline/adapter";
 import { createTypingSession, type TypingSession } from "./typingHarness";
+import { readIntegerEnv } from "./envInteger";
 
 // ── op vocabulary ─────────────────────────────────────────────────────────
 const TEXT_POOL = [
@@ -249,8 +252,10 @@ function fingerprint(node: PmNode): unknown {
 }
 const fp = (n: PmNode) => JSON.stringify(fingerprint(n));
 
-const RUNS = Number(process.env.FUZZ_RUNS ?? "25");
-const SEED = Number(process.env.FUZZ_SEED ?? "20260805");
+// Read strictly: a set-but-empty FUZZ_SEED used to become seed 0 silently, and
+// the weekly soak ran seed 0 for months (#1407). The test name prints both.
+const RUNS = readIntegerEnv("FUZZ_RUNS", 25, { min: 1 });
+const SEED = readIntegerEnv("FUZZ_SEED", 20260805);
 
 describe("editing-op fuzz (production stack)", () => {
   it(`random op traces preserve every invariant (${RUNS} runs, seed ${SEED})`, () => {

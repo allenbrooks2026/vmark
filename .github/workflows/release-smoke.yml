@@ -41,7 +41,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Event-supplied values go through env, never interpolated into the
           # shell body (workflow-injection safety).
-          INPUT_TAG: ${{ github.event.inputs.tag }}
+          INPUT_TAG: ${{ github.event.inputs.tag }} # input-empty-ok: empty on the release event; the step falls back to the release tag, then the latest release, and rejects anything not v*
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           TAG="${INPUT_TAG:-$RELEASE_TAG}"
@@ -236,7 +236,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
           # Event-supplied values go through env, never interpolated into the
           # shell body (workflow-injection safety).
-          INPUT_TAG: ${{ github.event.inputs.tag }}
+          INPUT_TAG: ${{ github.event.inputs.tag }} # input-empty-ok: empty on the release event; the step falls back to the release tag, then the latest release, and rejects anything not v*
           RELEASE_TAG: ${{ github.event.release.tag_name }}
         run: |
           TAG="${INPUT_TAG:-$RELEASE_TAG}"

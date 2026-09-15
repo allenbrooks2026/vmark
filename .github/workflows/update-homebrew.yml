@@ -28,7 +28,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 25
     env:
-      VERSION: ${{ github.event.inputs.version }}
+      VERSION: ${{ github.event.inputs.version }} # input-empty-ok: required dispatch input; the first step rejects anything not X.Y.Z
       REPO: xiaolai/vmark
     steps:
       - name: Validate version input

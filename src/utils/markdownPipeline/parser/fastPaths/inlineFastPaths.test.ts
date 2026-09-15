@@ -30,6 +30,7 @@ import remarkMath from "remark-math";
 import remarkFrontmatter from "remark-frontmatter";
 import { remarkInlineFastPaths } from "./remarkInlineFastPaths";
 import { CORPORA, loadExamples } from "../../__tests__/spec/corpusRegistry";
+import { readIntegerEnv } from "@/test/envInteger";
 
 const stock = unified()
   .use(remarkParse)
@@ -149,7 +150,7 @@ describe("inline fast paths leave every parse unchanged (#1407)", () => {
     }
   });
 
-  const SEED = Number(process.env.FAST_PATH_SEED ?? "1407");
+  const SEED = readIntegerEnv("FAST_PATH_SEED", 1407);
   const TOKENS = [
     "[", "]", "![", "(", ")", "<", ">", "^", " ", "\t", "\n", "\n\n", "a", "b", "\\", "`", "``",
     "*", "**", "_", "__", ":", "/", "中", "😀", "[^1]", "[^1]: n\n\n", "[a]: /u\n\n", "> ", "- ",
