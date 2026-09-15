@@ -8,6 +8,7 @@
  * and callbacks.
  *
  * @coordinates-with TiptapEditor.tsx — sole consumer; behavior documented there
+ * @coordinates-with services/editor/unparseableDocument.ts — a refused sync lands in Source mode
  * @module components/Editor/tiptapEditorHelpers
  */
 import type { MutableRefObject } from "react";
@@ -18,7 +19,7 @@ import { parseMarkdown } from "@/utils/markdownPipeline";
 import { getTiptapEditorView } from "@/services/editor/tiptapView";
 import { handleTableScrollToSelection } from "@/plugins/tableScroll/scrollGuard";
 import { setCvIdlePreservingViewport } from "./cvIdleViewportLock";
-import { tiptapError } from "@/utils/debug";
+import { reportUnparseableDocument } from "@/services/editor/unparseableDocument";
 
 /**
  * Delay before enabling cursor tracking after editor creation.
@@ -201,12 +202,17 @@ export function suppressCvIdleDuringEdit(
  * Parse markdown and sync it into the editor without touching undo history.
  * Updates lastExternalContent tracking ref on success.
  * Returns true if content was synced, false if already current or on error.
+ *
+ * A document that cannot be parsed is reported for `tabId` (#1407): the editor
+ * keeps its old content, and an edit there would overwrite the new text on
+ * the next flush, so it goes to Source mode with a message instead.
  */
 export function syncMarkdownToEditor(
   editor: TiptapEditor,
   markdown: string,
   lastExternalContent: MutableRefObject<string>,
   preserveLineBreaks: boolean,
+  tabId: string | undefined,
 ): boolean {
   if (markdown === lastExternalContent.current) return false;
   try {
@@ -215,7 +221,7 @@ export function syncMarkdownToEditor(
     lastExternalContent.current = markdown;
     return true;
   } catch (error) {
-    tiptapError(" Failed to sync markdown:", error);
+    reportUnparseableDocument(tabId, error);
     return false;
   }
 }

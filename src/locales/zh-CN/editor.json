@@ -339,5 +339,7 @@
   "splitPane.warningCount_other": "{{count}} 个警告",
   "splitPane.infoCount_one": "{{count}} 个提示",
   "splitPane.infoCount_other": "{{count}} 个提示",
-  "toc.empty": "没有标题"
+  "toc.empty": "没有标题",
+  "unparseable.tooDeeplyNested": "此文档嵌套了 {{depth}} 层，WYSIWYG 模式最多支持 {{limit}} 层，因此已以源码模式打开。",
+  "unparseable.parseFailed": "此文档无法在 WYSIWYG 模式下显示，因此已以源码模式打开。"
 }

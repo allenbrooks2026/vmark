@@ -25,6 +25,7 @@ O parsing não é o gargalo — é a construção da view do ProseMirror. Mover 
 
 - **Abrir um arquivo grande em WYSIWYG:** um spinner indeterminado com o rótulo *"Abrindo arquivo grande (N MB)…"* aparece à esquerda da barra de status enquanto o editor é montado. Ele desaparece assim que o editor fica interativo.
 - **Arquivo aberto automaticamente em modo Fonte:** a barra de status mostra *"Aberto em modo Fonte (arquivo grande)."* com um link **Mudar para WYSIWYG**. Clicar no link alterna a aba ativa para WYSIWYG. Fechar e reabrir o arquivo retorna ao modo Fonte — o override é por sessão.
+- **Documento que o WYSIWYG não consegue exibir:** um documento com citações ou listas aninhadas em mais de 1000 níveis não pode ser analisado como texto formatado, qualquer que seja o tamanho. Ele abre no modo Fonte com uma mensagem informando a profundidade, e a barra de status mostra *"Aberto no modo Fonte (não pode ser exibido no WYSIWYG)."* Reduza o aninhamento e depois use **Mudar para WYSIWYG**.
 
 ## Configurações
 

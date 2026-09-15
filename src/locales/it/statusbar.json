@@ -99,5 +99,6 @@
   "scrollTabsRight": "Scorri le schede a destra",
   "terminal.sessionExited": "{{name}} (terminato)",
   "terminal.backgroundActivity": "Attività in background",
-  "terminal.noWorkspaceSession": "Apri una cartella o salva il file per usare il terminale"
+  "terminal.noWorkspaceSession": "Apri una cartella o salva il file per usare il terminale",
+  "unparseable.openedInSourceMode": "Aperto in modalità Sorgente (non visualizzabile in WYSIWYG)."
 }

@@ -339,5 +339,7 @@
   "splitPane.warningCount_other": "{{count}} warnings",
   "splitPane.infoCount_one": "{{count}} notice",
   "splitPane.infoCount_other": "{{count}} notices",
-  "toc.empty": "No headings"
+  "toc.empty": "No headings",
+  "unparseable.tooDeeplyNested": "This document is nested {{depth}} levels deep; WYSIWYG supports up to {{limit}}, so it opened in Source mode.",
+  "unparseable.parseFailed": "This document could not be displayed in WYSIWYG, so it opened in Source mode."
 }

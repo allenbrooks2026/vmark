@@ -2,9 +2,11 @@
  * Source Mode Upgrade Offer
  *
  * Purpose: Appears in the StatusBar when the active tab was auto-routed to
- * Source mode because of file size. Lets the user explicitly opt into
- * WYSIWYG — clicking the link flips the mode, clears the marker, and the
- * upgrade offer disappears.
+ * Source mode — because of file size, or because the WYSIWYG parser refused
+ * the document (#1407); the label names which. Lets the user explicitly opt
+ * into WYSIWYG — clicking the link flips the mode, clears the marker, and the
+ * upgrade offer disappears. (A refused document is simply refused again, with
+ * a message, until its nesting is reduced.)
  *
  * Visible only when:
  *   - The active tab is in `useLargeFileSessionStore.forcedSourceTabs`.
@@ -35,9 +37,10 @@ export function SourceModeUpgrade() {
   const windowLabel = useWindowLabel();
   const activeTabId = useTabStore((s) => s.activeTabId[windowLabel] ?? null);
   /* v8 ignore next 3 -- @preserve defensive `!activeTabId` fallback is not exercised — the StatusBar always has an active tab in tests */
-  const isForcedSource = useLargeFileSessionStore((s) =>
-    activeTabId ? Boolean(s.forcedSourceTabs[activeTabId]) : false
+  const forcedReason = useLargeFileSessionStore((s) =>
+    activeTabId ? s.forcedSourceTabs[activeTabId] : undefined
   );
+  const isForcedSource = forcedReason !== undefined;
   const activeFilePath = useDocumentStore((s) =>
     activeTabId ? s.documents[activeTabId]?.filePath ?? null : null,
   );
@@ -66,7 +69,9 @@ export function SourceModeUpgrade() {
   return (
     <div className="status-source-upgrade" role="status" aria-live="polite">
       <span className="status-source-upgrade__label">
-        {t("largeFile.openedInSourceMode")}
+        {forcedReason === "unparseable"
+          ? t("unparseable.openedInSourceMode")
+          : t("largeFile.openedInSourceMode")}
       </span>
       <button
         type="button"

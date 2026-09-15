@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   })),
   useWindowLabel: vi.fn(() => "main"),
   consumeWysiwygPendingNav: vi.fn(() => false),
+  reportUnparseableDocument: vi.fn(),
   // Mock editor returned by useEditor
   mockEditor: null as ReturnType<typeof createMockEditor> | null,
   useEditor: vi.fn(),
@@ -216,6 +217,10 @@ vi.mock("@/stores/documentStore", () => ({
 
 vi.mock("./wysiwygPendingNav", () => ({
   consumeWysiwygPendingNav: (...args: unknown[]) => mocks.consumeWysiwygPendingNav(...args),
+}));
+
+vi.mock("@/services/editor/unparseableDocument", () => ({
+  reportUnparseableDocument: (...args: unknown[]) => mocks.reportUnparseableDocument(...args),
 }));
 
 vi.mock("./ImageContextMenu", () => ({
@@ -402,15 +407,17 @@ describe("syncMarkdownToEditor — via onCreate", () => {
     expect(mockTr.setMeta).toHaveBeenCalledWith("addToHistory", false);
   });
 
-  it("handles parse failure in syncMarkdownToEditor gracefully", () => {
+  it("reports an initial parse failure for this tab instead of leaving a blank editor (#1407)", () => {
     const editor = createMockEditor();
     mocks.useEditor.mockReturnValue(editor);
     mocks.getTiptapEditorView.mockReturnValue(null);
+    mocks.reportUnparseableDocument.mockReset();
 
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
 
     // parseMarkdown throws
-    mocks.parseMarkdown.mockImplementation(() => { throw new Error("parse fail"); });
+    const failure = new Error("parse fail");
+    mocks.parseMarkdown.mockImplementation(() => { throw failure; });
 
     render(<TiptapEditorInner hidden={false} />);
     const config = mocks.useEditor.mock.calls[mocks.useEditor.mock.calls.length - 1][0];
@@ -421,6 +428,10 @@ describe("syncMarkdownToEditor — via onCreate", () => {
     vi.runAllTimers(); // flush pending timers to prevent bleed into next test
     vi.useRealTimers();
     errorSpy.mockRestore();
+
+    // The failure reaches the user (and Source mode), with the real error so
+    // a nesting refusal can say how deep the document was.
+    expect(mocks.reportUnparseableDocument).toHaveBeenCalledWith("tab-1", failure);
   });
 });
 

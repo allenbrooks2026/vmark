@@ -25,6 +25,7 @@ Das Parsen ist nicht der Flaschenhals — es ist die View-Konstruktion von Prose
 
 - **Beim Öffnen einer großen Datei in WYSIWYG:** Ein unbestimmter Spinner mit der Beschriftung *„Große Datei wird geöffnet (N MB)…"* erscheint links in der Statusleiste, während der Editor geladen wird. Er verschwindet, sobald der Editor interaktiv ist.
 - **Datei automatisch im Quellmodus geöffnet:** Die Statusleiste zeigt *„Im Quellmodus geöffnet (große Datei)."* mit einem Link **Zu WYSIWYG wechseln**. Ein Klick auf den Link wechselt den aktiven Tab in den WYSIWYG-Modus. Wird die Datei geschlossen und erneut geöffnet, kehrt sie in den Quellmodus zurück — die Übersteuerung gilt pro Sitzung.
+- **Dokument, das WYSIWYG nicht darstellen kann:** Ein Dokument mit Zitaten oder Listen, die mehr als 1000 Ebenen tief verschachtelt sind, lässt sich unabhängig von seiner Größe nicht als Rich Text einlesen. Es öffnet sich im Quellmodus mit einer Meldung, die die Tiefe nennt, und die Statusleiste zeigt *„Im Quelltextmodus geöffnet (in WYSIWYG nicht darstellbar)."* Verringern Sie die Verschachtelung und verwenden Sie dann **Zu WYSIWYG wechseln**.
 
 ## Einstellungen
 

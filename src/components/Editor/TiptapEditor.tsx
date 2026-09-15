@@ -9,8 +9,8 @@
  *     with the initial parse.
  *   - Adaptive debounce (100ms–5s) scales with document size: larger docs get longer
  *     delays to reduce serialization frequency without losing keystrokes on unmount.
- *   - Initial parse is deferred via setTimeout(0) so the editor shell renders before the
- *     heavy markdown→PM conversion runs, keeping the UI responsive on large documents.
+ *   - Initial parse is deferred via setTimeout(0) so the shell renders first; a parse that
+ *     fails goes to services/editor/unparseableDocument.ts (Source mode + message, #1407).
  *   - shouldRerenderOnTransaction: false — Tiptap's default full-React-rerender per
  *     transaction is wasted work here since state flows through Zustand selectors.
  *   - content-visibility gated on .cv-idle (off during typing) and only above
@@ -54,7 +54,7 @@ import { useWindowLabel } from "@/contexts/WindowContext";
 import { useFocusedPaneTiptapRegistration } from "@/hooks/useFocusedPaneTiptapRegistration";
 import { extractTiptapContext } from "@/plugins/formatToolbar/tiptapContext";
 import { useImageDragDrop } from "@/hooks/useImageDragDrop";
-import { tiptapError } from "@/utils/debug";
+import { reportUnparseableDocument } from "@/services/editor/unparseableDocument";
 import { consumeWysiwygPendingNav } from "./wysiwygPendingNav";
 import { ImageContextMenu } from "./ImageContextMenu";
 import { useTiptapContentSync } from "./useTiptapContentSync";
@@ -215,11 +215,11 @@ export function TiptapEditorInner({ hidden = false, readOnly = false, preview = 
           // the next content change.
           if (contentRef.current !== contentSnapshot) {
             syncMarkdownToEditor(
-              editor, contentRef.current, lastExternalContent, preserveLineBreaksRef.current,
+              editor, contentRef.current, lastExternalContent, preserveLineBreaksRef.current, activeTabId,
             );
           }
         } catch (error) {
-          tiptapError(" Failed to parse initial markdown:", error);
+          reportUnparseableDocument(activeTabId, error); // Source mode + message, not a blank editor (#1407)
           editorInitialized.current = true; // Unblock external sync even on parse error
         } finally {
           // Clear the "Opening large file…" StatusBar indicator once this

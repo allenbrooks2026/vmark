@@ -25,6 +25,7 @@ L'analyse n'est pas le goulot d'étranglement — c'est la construction de la vu
 
 - **Ouverture d'un fichier volumineux en WYSIWYG&nbsp;:** un indicateur indéterminé avec le libellé *«&nbsp;Ouverture du fichier volumineux (N Mo)…&nbsp;»* apparaît à gauche de la barre d'état pendant le montage de l'éditeur. Il disparaît dès que l'éditeur devient interactif.
 - **Fichier ouvert automatiquement en mode Source&nbsp;:** la barre d'état affiche *«&nbsp;Ouvert en mode Source (fichier volumineux).&nbsp;»* avec un lien **Basculer en WYSIWYG**. Cliquer sur le lien fait passer l'onglet actif en WYSIWYG. Fermer puis rouvrir le fichier rétablit le mode Source — le contournement est limité à la session.
+- **Document que le WYSIWYG ne peut pas afficher&nbsp;:** un document dont les citations ou les listes sont imbriquées sur plus de 1000 niveaux ne peut pas être analysé en texte enrichi, quelle que soit sa taille. Il s'ouvre en mode Source avec un message indiquant la profondeur, et la barre d'état affiche *«&nbsp;Ouvert en mode Source (impossible à afficher en WYSIWYG).&nbsp;»* Réduisez l'imbrication, puis utilisez **Basculer en WYSIWYG**.
 
 ## Paramètres
 

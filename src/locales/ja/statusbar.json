@@ -99,5 +99,6 @@
   "scrollTabsRight": "タブを右にスクロール",
   "terminal.sessionExited": "{{name}}（終了済み）",
   "terminal.backgroundActivity": "バックグラウンドの動作",
-  "terminal.noWorkspaceSession": "ターミナルを使用するには、フォルダを開くかファイルを保存してください"
+  "terminal.noWorkspaceSession": "ターミナルを使用するには、フォルダを開くかファイルを保存してください",
+  "unparseable.openedInSourceMode": "ソースモードで開きました（WYSIWYG で表示できません）。"
 }

@@ -25,6 +25,7 @@ Parsing is not the bottleneck — it is ProseMirror's view construction. Moving 
 
 - **Opening a large file in WYSIWYG:** an indeterminate spinner with the label *"Opening large file (N MB)…"* appears at the left of the status bar while the editor mounts. It disappears as soon as the editor is interactive.
 - **File opened in Source mode automatically:** the status bar shows *"Opened in Source mode (large file)."* with a **Switch to WYSIWYG** link. Clicking the link flips the active tab to WYSIWYG. Closing and reopening the file returns to Source mode — the override is per-session.
+- **Document WYSIWYG cannot display:** a document with blockquotes or lists nested more than 1000 levels deep cannot be parsed as rich text, whatever its size. It opens in Source mode with a message saying how deep it is, and the status bar shows *"Opened in Source mode (cannot be displayed in WYSIWYG)."* Reduce the nesting, then use **Switch to WYSIWYG**.
 
 ## Settings
 

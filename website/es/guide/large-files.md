@@ -25,6 +25,7 @@ El parseo no es el cuello de botella — lo es la construcción de la vista de P
 
 - **Al abrir un archivo grande en WYSIWYG:** aparece un spinner indeterminado con la etiqueta *"Abriendo archivo grande (N MB)…"* a la izquierda de la barra de estado mientras se monta el editor. Desaparece tan pronto como el editor está interactivo.
 - **Archivo abierto en modo Fuente automáticamente:** la barra de estado muestra *"Abierto en modo Fuente (archivo grande)."* con un enlace **Cambiar a WYSIWYG**. Al pulsar el enlace, la pestaña activa pasa a WYSIWYG. Cerrar y volver a abrir el archivo lo devuelve al modo Fuente — la sustitución es por sesión.
+- **Documento que WYSIWYG no puede mostrar:** un documento con citas o listas anidadas más de 1000 niveles no se puede analizar como texto enriquecido, sea cual sea su tamaño. Se abre en modo Fuente con un mensaje que indica la profundidad, y la barra de estado muestra *"Abierto en modo Fuente (no se puede mostrar en WYSIWYG)."* Reduce el anidamiento y luego usa **Cambiar a WYSIWYG**.
 
 ## Configuración
 

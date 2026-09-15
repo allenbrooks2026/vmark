@@ -66,6 +66,23 @@ describe("SourceModeUpgrade", () => {
     expect(useLargeFileSessionStore.getState().isForcedSource("tab-1")).toBe(false);
   });
 
+  it("says a refused document is in Source mode because WYSIWYG cannot show it, not because it is large", () => {
+    // #1407: the marker is shared with the large-file path; its label must
+    // not claim the file is large when the parser refused it.
+    setActiveTab("tab-1");
+    useLargeFileSessionStore.getState().markForcedSource("tab-1", "unparseable");
+
+    render(<SourceModeUpgrade />);
+
+    expect(screen.getByText("unparseable.openedInSourceMode")).toBeInTheDocument();
+    expect(screen.queryByText("largeFile.openedInSourceMode")).not.toBeInTheDocument();
+    // The way back stays: after reducing the nesting in Source mode, this is
+    // how the user asks for WYSIWYG again.
+    expect(
+      screen.getByRole("button", { name: /largeFile\.switchToWysiwygAria/i })
+    ).toBeInTheDocument();
+  });
+
   it("does not render for an unrelated active tab", () => {
     setActiveTab("tab-1");
     useLargeFileSessionStore.getState().markForcedSource("tab-9");

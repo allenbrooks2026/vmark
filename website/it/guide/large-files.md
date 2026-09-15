@@ -25,6 +25,7 @@ Il collo di bottiglia non è il parsing — è la costruzione della view di Pros
 
 - **Apertura di un file grande in WYSIWYG:** uno spinner indeterminato con l'etichetta *"Apertura file grande (N MB)…"* compare a sinistra della barra di stato mentre l'editor si monta. Sparisce non appena l'editor è interattivo.
 - **File aperto automaticamente in modalità Sorgente:** la barra di stato mostra *"Aperto in modalità Sorgente (file grande)."* con un collegamento **Passa a WYSIWYG**. Cliccando il collegamento la scheda attiva passa a WYSIWYG. Chiudendo e riaprendo il file si torna in modalità Sorgente — l'override vale solo per la sessione.
+- **Documento che WYSIWYG non può visualizzare:** un documento con citazioni o elenchi annidati per più di 1000 livelli non può essere analizzato come testo formattato, qualunque sia la sua dimensione. Si apre in modalità Sorgente con un messaggio che indica la profondità, e la barra di stato mostra *"Aperto in modalità Sorgente (non visualizzabile in WYSIWYG)."* Riduci l'annidamento, poi usa **Passa a WYSIWYG**.
 
 ## Impostazioni
 

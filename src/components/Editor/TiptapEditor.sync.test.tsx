@@ -42,6 +42,7 @@ const mocks = vi.hoisted(() => ({
   })),
   useWindowLabel: vi.fn(() => "main"),
   consumeWysiwygPendingNav: vi.fn(() => false),
+  reportUnparseableDocument: vi.fn(),
   // Mock editor returned by useEditor
   mockEditor: null as ReturnType<typeof createMockEditor> | null,
   useEditor: vi.fn(),
@@ -218,6 +219,10 @@ vi.mock("./wysiwygPendingNav", () => ({
   consumeWysiwygPendingNav: (...args: unknown[]) => mocks.consumeWysiwygPendingNav(...args),
 }));
 
+vi.mock("@/services/editor/unparseableDocument", () => ({
+  reportUnparseableDocument: (...args: unknown[]) => mocks.reportUnparseableDocument(...args),
+}));
+
 vi.mock("./ImageContextMenu", () => ({
   ImageContextMenu: ({ onAction }: { onAction: (a: string) => void }) => (
     <button data-testid="image-ctx" onClick={() => onAction("test")} />
@@ -316,20 +321,17 @@ describe("TiptapEditorInner — external content sync effect", () => {
     vi.useRealTimers();
 
     // Set up error scenario (mockImplementationOnce prevents leaking into next test)
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    mocks.parseMarkdown.mockImplementationOnce(() => { throw new Error("sync fail"); });
+    mocks.reportUnparseableDocument.mockReset();
+    const failure = new Error("sync fail");
+    mocks.parseMarkdown.mockImplementationOnce(() => { throw failure; });
     mocks.useDocumentContent.mockReturnValue("# broken");
 
     rerender(<TiptapEditorInner hidden={false} />);
 
-    // Content sync effect fires synchronously (content "# broken" != "# initial", initialized=true)
-    // tiptapError logs as: ("[Tiptap]", " Failed to sync markdown:", error)
-    expect(errorSpy).toHaveBeenCalledWith(
-      "[Tiptap]",
-      expect.stringContaining("Failed to sync markdown"),
-      expect.any(Error)
-    );
-    errorSpy.mockRestore();
+    // Content sync effect fires synchronously (content "# broken" != "# initial", initialized=true).
+    // The failure is reported for this tab (#1407) — Source mode and a message —
+    // instead of only a dev-build log over an editor still showing old content.
+    expect(mocks.reportUnparseableDocument).toHaveBeenCalledWith("tab-1", failure);
   });
 
   it("sets cursor to start when synced without cursor info", () => {
