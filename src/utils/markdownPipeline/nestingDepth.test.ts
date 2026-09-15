@@ -35,7 +35,6 @@ import {
   MAX_NESTING_DEPTH,
   maxContainerDepth,
   checkNestingDepth,
-  isNestingTooDeep,
   nestingRefusal,
 } from "./nestingDepth";
 import { parseMarkdown } from "./adapter";
@@ -142,7 +141,6 @@ describe("nestingRefusal (#1407)", () => {
   it("reads the depth and the limit off the guard's own error", () => {
     const error = thrownBy(() => checkNestingDepth(tooDeep));
     expect(nestingRefusal(error)).toEqual({ depth: MAX_NESTING_DEPTH + 7, limit: MAX_NESTING_DEPTH });
-    expect(isNestingTooDeep(error)).toBe(true);
   });
 
   it("finds it through parseMarkdown's wrapper, where callers actually meet it", () => {
@@ -159,7 +157,6 @@ describe("nestingRefusal (#1407)", () => {
     ["null", null],
   ])("is undefined for %s", (_label, error) => {
     expect(nestingRefusal(error)).toBeUndefined();
-    expect(isNestingTooDeep(error)).toBe(false);
   });
 
   it("terminates on a cyclic cause chain", () => {

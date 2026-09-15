@@ -154,7 +154,7 @@ export function maxContainerDepth(markdown: string): number {
  * otherwise have to match prose through a wrapper — which breaks the first
  * time the wording is edited.
  *
- * Module-local on purpose. `isNestingTooDeep` is the interface, and it is the
+ * Module-local on purpose. `nestingRefusal` is the interface, and it is the
  * one callers should use: a bare `instanceof` would miss the case the wrapper
  * creates, where the refusal arrives as the `cause` of a generic parse error.
  */
@@ -195,10 +195,6 @@ export function nestingRefusal(error: unknown): NestingRefusal | undefined {
   return undefined;
 }
 
-/** Is `error` — or anything it wraps — a nesting refusal? */
-export function isNestingTooDeep(error: unknown): boolean {
-  return nestingRefusal(error) !== undefined;
-}
 
 /** Throw if `markdown` nests deeper than the parser can survive. */
 export function checkNestingDepth(markdown: string): void {
