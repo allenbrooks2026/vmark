@@ -22,6 +22,7 @@ import StarterKit from "@tiptap/starter-kit";
 import { gunzipSync } from "node:zlib";
 import "@/utils/markdownPipeline/dialect";
 import { parseMarkdown, serializeMarkdown } from "@/utils/markdownPipeline/adapter";
+import { parseArbitraryMarkdown } from "./arbitraryMarkdown";
 
 const schema = getSchema([StarterKit]);
 
@@ -108,6 +109,7 @@ describe("OSS-Fuzz cmark corpus soak (best-effort bucket)", () => {
     const files = readdirSync(join(dir, "corpus")).slice(0, 500);
     expect(files.length).toBeGreaterThan(100);
     const oscillating: string[] = [];
+    const refused: string[] = [];
     for (const file of files) {
       const bytes = readFileSync(join(dir, "corpus", file));
       const text = bytes.toString("utf8");
@@ -117,17 +119,33 @@ describe("OSS-Fuzz cmark corpus soak (best-effort bucket)", () => {
       // inputs hit that class, so a small, LOUDLY-REPORTED tolerance keeps
       // the weekly soak signal instead of permanently red. Fixing the
       // ledgered defects shrinks this to zero.
-      const md1 = serializeMarkdown(schema, parseMarkdown(schema, text));
+      //
+      // A document nested past MAX_NESTING_DEPTH is REFUSED by design (#1374),
+      // and the corpus has one 16382 levels deep (#1407) — that is handled,
+      // not a crash. Only the input may be refused: the re-parses below read
+      // the pipeline's own output, where a refusal would be a real defect.
+      const first = parseArbitraryMarkdown(schema, text);
+      if (first.kind === "refused") {
+        refused.push(`${file} (${first.refusal.depth} levels)`);
+        continue;
+      }
+      const md1 = serializeMarkdown(schema, first.doc);
       const md2 = serializeMarkdown(schema, parseMarkdown(schema, md1));
       const md3 = serializeMarkdown(schema, parseMarkdown(schema, md2));
       if (md3 !== md2) oscillating.push(file);
     }
+    if (refused.length > 0) {
+      console.warn(`[SOAK] ${refused.length}/${files.length} fuzz inputs refused as too deeply nested: ${refused.join(", ")}`);
+    }
+    const checked = files.length - refused.length;
+    // The sample is only worth its name if the refusal did not eat it.
+    expect(checked, "fuzz inputs actually round-tripped").toBeGreaterThan(100);
     if (oscillating.length > 0) {
       console.warn(
-        `[SOAK] ${oscillating.length}/${files.length} fuzz inputs oscillate (known escape-growth class): ` +
+        `[SOAK] ${oscillating.length}/${checked} fuzz inputs oscillate (known escape-growth class): ` +
           oscillating.slice(0, 10).join(", "),
       );
     }
-    expect(oscillating.length / files.length, "oscillating fraction").toBeLessThanOrEqual(0.02);
+    expect(oscillating.length / checked, "oscillating fraction").toBeLessThanOrEqual(0.02);
   });
 });

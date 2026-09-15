@@ -31,7 +31,15 @@
  * @module utils/markdownPipeline/nestingDepth.test
  */
 import { describe, it, expect } from "vitest";
-import { MAX_NESTING_DEPTH, maxContainerDepth, checkNestingDepth } from "./nestingDepth";
+import {
+  MAX_NESTING_DEPTH,
+  maxContainerDepth,
+  checkNestingDepth,
+  isNestingTooDeep,
+  nestingRefusal,
+} from "./nestingDepth";
+import { parseMarkdown } from "./adapter";
+import { testSchema } from "./testSchema";
 
 describe("maxContainerDepth", () => {
   it("is zero for ordinary prose", () => {
@@ -116,5 +124,48 @@ describe("checkNestingDepth", () => {
     // A guard is only worth having if it never fires on real writing. The
     // deepest nesting in this repo's own corpora is in single digits.
     expect(MAX_NESTING_DEPTH).toBeGreaterThanOrEqual(500);
+  });
+});
+
+describe("nestingRefusal (#1407)", () => {
+  const tooDeep = `${"> ".repeat(MAX_NESTING_DEPTH + 7)}a\n`;
+
+  function thrownBy(fn: () => unknown): unknown {
+    try {
+      fn();
+    } catch (error) {
+      return error;
+    }
+    throw new Error("expected a throw");
+  }
+
+  it("reads the depth and the limit off the guard's own error", () => {
+    const error = thrownBy(() => checkNestingDepth(tooDeep));
+    expect(nestingRefusal(error)).toEqual({ depth: MAX_NESTING_DEPTH + 7, limit: MAX_NESTING_DEPTH });
+    expect(isNestingTooDeep(error)).toBe(true);
+  });
+
+  it("finds it through parseMarkdown's wrapper, where callers actually meet it", () => {
+    const error = thrownBy(() => parseMarkdown(testSchema, tooDeep));
+    expect(error).toBeInstanceOf(Error);
+    expect(nestingRefusal(error)).toEqual({ depth: MAX_NESTING_DEPTH + 7, limit: MAX_NESTING_DEPTH });
+  });
+
+  it.each([
+    ["an unrelated error", new Error("boom")],
+    ["an error that merely SAYS it is a nesting refusal", new Error("Nesting is 5000 levels deep")],
+    ["a thrown string", "Nesting is 5000 levels deep"],
+    ["undefined", undefined],
+    ["null", null],
+  ])("is undefined for %s", (_label, error) => {
+    expect(nestingRefusal(error)).toBeUndefined();
+    expect(isNestingTooDeep(error)).toBe(false);
+  });
+
+  it("terminates on a cyclic cause chain", () => {
+    const a = new Error("a");
+    const b = new Error("b", { cause: a });
+    (a as { cause?: unknown }).cause = b;
+    expect(nestingRefusal(a)).toBeUndefined();
   });
 });
