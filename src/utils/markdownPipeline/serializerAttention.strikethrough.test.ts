@@ -7,11 +7,13 @@
  * stopped masking it. The failing shape is the one GFM's flanking rules
  * forbid: an opening run followed by punctuation while preceded by an
  * alphanumeric (and its mirror image at the closer).
+ *
+ * The handler lives in serializerAttention.ts; astral neighbours are covered by
+ * serializerAttention.astral.test.ts.
  */
 import { describe, expect, it } from "vitest";
 import { getProductionSchema } from "@/test/productionSchema";
 import { serializeMarkdown, parseMarkdown } from "./adapter";
-import { repairSplitSurrogateEntities } from "./serializerStrikethrough";
 
 const schema = getProductionSchema();
 
@@ -107,75 +109,3 @@ describe("strikethrough delimiter flanking", () => {
   });
 });
 
-
-/**
- * Audit 20260906 — attention-encoding split astral characters.
- *
- * `mdast-util-to-markdown` makes a non-flanking delimiter work by character-
- * referencing its neighbour, but encodes by UTF-16 CODE UNIT: an emoji next to
- * such a delimiter came out as `&#xD83D;` plus a raw low surrogate, reparsing
- * as U+FFFD. Upstream, and older than VMark's `delete` handler — plain
- * `**bold**` reproduces it with no strikethrough involved.
- */
-describe("astral characters beside an encoded delimiter", () => {
-  /** Round-trip a paragraph of [marked, plain]. */
-  function afterMark(markName: "bold" | "italic" | "strike", marked: string, tail: string) {
-    const doc = schema.node("doc", null, [
-      schema.node("paragraph", null, [
-        schema.text(marked, [schema.marks[markName].create()]),
-        schema.text(tail),
-      ]),
-    ]);
-    const markdown = serializeMarkdown(schema, doc);
-    return { markdown, text: parseMarkdown(schema, markdown).textContent };
-  }
-
-  it("preserves an emoji after a bold run ending in punctuation", () => {
-    const { text } = afterMark("bold", "word*", "🙂word");
-
-    expect(text).toBe("word*🙂word");
-    expect(text).not.toContain("\uFFFD");
-  });
-
-  it("preserves an emoji after a strikethrough run ending in punctuation", () => {
-    const { text } = afterMark("strike", "word*", "🙂word");
-
-    expect(text).toBe("word*🙂word");
-  });
-
-  it("preserves an emoji after an italic run ending in punctuation", () => {
-    const { text } = afterMark("italic", "word*", "🙂word");
-
-    expect(text).toBe("word*🙂word");
-  });
-
-  // The repair must re-encode the PAIR, not decode it — decoding would undo
-  // the very thing that makes the delimiter flank.
-  it("re-encodes the surrogate pair as one code point", () => {
-    expect(afterMark("bold", "word*", "🙂word").markdown).toContain("&#x1F642;");
-  });
-
-  describe("repairSplitSurrogateEntities", () => {
-    it("joins a high-surrogate reference with its raw low surrogate", () => {
-      expect(repairSplitSurrogateEntities("a&#xD83D;\uDE42b")).toBe("a&#x1F642;b");
-    });
-
-    it("leaves an ordinary character reference alone", () => {
-      expect(repairSplitSurrogateEntities("plai&#x6E;~~x~~")).toBe("plai&#x6E;~~x~~");
-    });
-
-    it("leaves text with no references alone", () => {
-      expect(repairSplitSurrogateEntities("just 🙂 text")).toBe("just 🙂 text");
-    });
-
-    it("ignores a high-surrogate reference not followed by a low surrogate", () => {
-      expect(repairSplitSurrogateEntities("&#xD83D;x")).toBe("&#xD83D;x");
-    });
-
-    it("repairs several occurrences", () => {
-      expect(repairSplitSurrogateEntities("&#xD83D;\uDE42 and &#xD83D;\uDE00")).toBe(
-        "&#x1F642; and &#x1F600;",
-      );
-    });
-  });
-});

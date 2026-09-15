@@ -61,6 +61,7 @@ import {
 import { useSettingsStore } from "@/stores/settingsStore";
 import { compositionGuardExtension } from "@/plugins/compositionGuard/tiptap";
 import { blankLinesGuardExtension } from "@/plugins/blankLinesGuard/tiptap";
+import { undoIntegrityExtension } from "@/plugins/undoIntegrity/tiptap";
 import { focusModeExtension } from "@/plugins/focusMode/tiptap";
 import { focusModeHostOptions, typewriterModeHostOptions } from "./uiToggleOptions";
 import { typewriterModeExtension } from "@/plugins/typewriterMode/tiptap";
@@ -160,6 +161,9 @@ export function buildExtensionList(config: TiptapExtensionConfig = {}): Extensio
         newGroupDelay: 500,
       },
     }),
+    // Refuses any document change appended to an undo/redo, which corrupted
+    // the remaining undo history (plugins/undoIntegrity).
+    undoIntegrityExtension,
     vmarkLinkExtension,
     // CJK-aware bold/italic (replaces StarterKit defaults)
     CJKBold,

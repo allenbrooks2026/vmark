@@ -9,10 +9,11 @@ import { WYSIWYG_COMPOSITION_ORDER } from "./compositionOrder";
 
 describe("WI-3.4 — WYSIWYG composition order", () => {
   // 79 since audit 20260906 F5 added `safeBlockSplit` — Enter on a cross-block
-  // selection, which StarterKit's splitBlock throws on.
-  it("has 79 unique canonical entries", () => {
-    expect(WYSIWYG_COMPOSITION_ORDER.length).toBe(79);
-    expect(new Set(WYSIWYG_COMPOSITION_ORDER).size).toBe(79);
+  // selection, which StarterKit's splitBlock throws on. 80 since `undoIntegrity`
+  // stopped normalizers rewriting an undo (#1407 soak, fuzz seed 4).
+  it("has 80 unique canonical entries", () => {
+    expect(WYSIWYG_COMPOSITION_ORDER.length).toBe(80);
+    expect(new Set(WYSIWYG_COMPOSITION_ORDER).size).toBe(80);
   });
 
   it("resolves to exactly the canonical order when a tab is known (lint present)", () => {

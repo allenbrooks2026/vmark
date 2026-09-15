@@ -321,36 +321,6 @@
       "reason": "Inline mark model: nested same-type emphasis, mark order around links, or empty-text inline constructs cannot be represented distinctly by ProseMirror marks, so the re-parse reads a flattened/re-ordered inline shape."
     },
     {
-      "exampleId": "cm-39",
-      "path": "root",
-      "kind": "child-count",
-      "detail": "1 vs 2",
-      "inputValue": 1,
-      "outputValue": 2,
-      "verdict": "defect",
-      "reason": "Entity-newline injection: numeric entities for newlines (&#10;) serialize as REAL newlines, so one paragraph reparses as two blocks — fixable corruption of the author's structure; ratcheted."
-    },
-    {
-      "exampleId": "cm-39",
-      "path": "root.children[0].children[0]",
-      "kind": "attribute",
-      "detail": "value",
-      "inputValue": "foo\n\nbar",
-      "outputValue": "foo",
-      "verdict": "defect",
-      "reason": "Entity-newline injection: numeric entities for newlines (&#10;) serialize as REAL newlines, so one paragraph reparses as two blocks — fixable corruption of the author's structure; ratcheted."
-    },
-    {
-      "exampleId": "cm-39",
-      "path": "root.children[1]",
-      "kind": "missing",
-      "detail": "absent in document",
-      "inputValue": "__undefined__",
-      "outputValue": "paragraph",
-      "verdict": "defect",
-      "reason": "Entity-newline injection: numeric entities for newlines (&#10;) serialize as REAL newlines, so one paragraph reparses as two blocks — fixable corruption of the author's structure; ratcheted."
-    },
-    {
       "exampleId": "cm-407",
       "path": "root.children[0].children[0]",
       "kind": "child-count",
@@ -2930,36 +2900,6 @@
     }
   ],
   "fidelity": [
-    {
-      "exampleId": "cm-39",
-      "path": "root",
-      "kind": "child-count",
-      "detail": "1 vs 2",
-      "inputValue": 1,
-      "outputValue": 2,
-      "verdict": "defect",
-      "reason": "Entity-newline injection: numeric entities for newlines (&#10;) serialize as REAL newlines, so one paragraph reparses as two blocks — fixable corruption of the author's structure; ratcheted."
-    },
-    {
-      "exampleId": "cm-39",
-      "path": "root.children[0].children[0]",
-      "kind": "attribute",
-      "detail": "value",
-      "inputValue": "foo\n\nbar",
-      "outputValue": "foo",
-      "verdict": "defect",
-      "reason": "Entity-newline injection: numeric entities for newlines (&#10;) serialize as REAL newlines, so one paragraph reparses as two blocks — fixable corruption of the author's structure; ratcheted."
-    },
-    {
-      "exampleId": "cm-39",
-      "path": "root.children[1]",
-      "kind": "missing",
-      "detail": "absent in document",
-      "inputValue": "__undefined__",
-      "outputValue": "paragraph",
-      "verdict": "defect",
-      "reason": "Entity-newline injection: numeric entities for newlines (&#10;) serialize as REAL newlines, so one paragraph reparses as two blocks — fixable corruption of the author's structure; ratcheted."
-    },
     {
       "exampleId": "cm-109",
       "path": "root.children[0].children[0]",

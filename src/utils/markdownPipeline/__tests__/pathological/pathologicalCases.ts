@@ -15,6 +15,7 @@
  * @coordinates-with pathological.test.ts — the killing parent
  * @module utils/markdownPipeline/__tests__/pathological/pathologicalCases
  */
+import { readIntegerEnv } from "@/test/envInteger";
 
 export interface PathologicalCase {
   name: string;
@@ -31,9 +32,12 @@ export interface PathologicalCase {
 }
 
 /** The scale a run uses: `PATHOLOGICAL_SCALE`, read in ONE place so the child
- *  that generates the inputs and the parent that judges them cannot disagree. */
+ *  that generates the inputs and the parent that judges them cannot disagree.
+ *  Read strictly: `Number("")` is 0, and `pathologicalCases` clamps every size
+ *  to at least 4, so an empty value used to shrink the soak to trivial inputs
+ *  that pass without testing anything. */
 export function pathologicalScale(): number {
-  return Number(process.env.PATHOLOGICAL_SCALE ?? "1");
+  return readIntegerEnv("PATHOLOGICAL_SCALE", 1, { min: 1 });
 }
 
 export function pathologicalCases(scale = 1): PathologicalCase[] {

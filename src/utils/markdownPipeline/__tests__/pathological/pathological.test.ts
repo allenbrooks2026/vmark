@@ -117,7 +117,7 @@ function waitForNoRunners(budgetMs: number): string[] {
 }
 
 describe("pathological inputs (killable child process)", () => {
-  it("every pathological class parses and serializes within the wall ceiling", () => {
+  it(`every pathological class parses and serializes within the wall ceiling (scale ${pathologicalScale()})`, () => {
     const { res, lines } = runChild({}, WALL_CEILING_MS);
 
     const started = lines.filter((l) => l.starting && l.name).map((l) => l.name);

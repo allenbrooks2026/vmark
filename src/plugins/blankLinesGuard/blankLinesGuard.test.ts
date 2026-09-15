@@ -7,6 +7,7 @@
 // leaving parse-captured values and in-place content edits untouched.
 import { describe, it, expect, beforeEach } from "vitest";
 import { EditorState, TextSelection } from "@tiptap/pm/state";
+import { history, undo } from "@tiptap/pm/history";
 import { Schema, type Node as PMNode } from "@tiptap/pm/model";
 import { blankLinesGuard } from "./blankLinesGuard";
 
@@ -116,5 +117,26 @@ describe("blankLinesGuard", () => {
       .setMeta("preventUpdate", true);
     const next = empty.apply(tr);
     expect(blanksOf(next)).toEqual([null, 4]);
+  });
+});
+
+// An undo restores the attributes it recorded. Nulling them in response would
+// also append a change to the undo, which prosemirror-history files without
+// remapping the rest of the undo branch (plugins/undoIntegrity) — so the guard
+// stands down on a history batch however the transaction is applied.
+describe("blankLinesGuard on undo", () => {
+  it("leaves the blank-line count an undo restores", () => {
+    let state = EditorState.create({
+      schema,
+      doc: docWith({ text: "Hello", blank: 3 }),
+      plugins: [history(), blankLinesGuard()],
+    });
+    // Delete the paragraph's content and structure, then undo it back.
+    state = state.apply(state.tr.replaceWith(0, state.doc.content.size, schema.node("paragraph")));
+    expect(blanksOf(state)).toEqual([null]);
+    undo(state, (tr) => {
+      state = state.apply(tr);
+    });
+    expect(blanksOf(state)).toEqual([3]);
   });
 });

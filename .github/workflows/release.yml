@@ -35,9 +35,12 @@ jobs:
 
       - name: Get version
         id: get-version
+        env:
+          # Through env, never pasted into the shell body (workflow-injection
+          # safety, and check-workflow-input-fallbacks.test.mjs).
+          INPUT_VERSION: ${{ github.event.inputs.version }} # input-empty-ok: empty on a tag push, where it is not read; a dispatch rejects anything not vX.Y.Z below
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            INPUT_VERSION="${{ github.event.inputs.version }}"
             # Strict format: vX.Y.Z (optionally with -prerelease or +build).
             # Manual-dispatch typos otherwise create bogus releases that pass
             # the rest of the pipeline (semver validator on latest.json runs

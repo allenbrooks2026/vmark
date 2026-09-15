@@ -24,7 +24,7 @@ on:
         description: "fast-check runs for the editing fuzz"
         default: "500"
       fuzz_seed:
-        description: "fast-check seed (empty = keep CI default)"
+        description: "fast-check seed (empty = the CI default, 20260805)"
         default: ""
 
 permissions:
@@ -47,7 +47,10 @@ jobs:
         include:
           - name: fuzz
             label: Deep editing-op fuzz (scaled)
-            command: pnpm vitest run src/test/editingFuzz.test.ts
+            # verbose: the test NAME carries the runs and seed, and the default
+            # reporter prints no names for a passing file, so a green log
+            # would not say which seed actually ran.
+            command: pnpm vitest run src/test/editingFuzz.test.ts --reporter=verbose
           - name: pathological
             label: Full-size pathological inputs (killable child)
             command: pnpm vitest run src/utils/markdownPipeline/__tests__/pathological/
@@ -69,8 +72,15 @@ jobs:
       - name: ${{ matrix.label }}
         env:
           # Only the fuzz reads these; the others ignore them.
+          #
+          # `inputs.*` is the EMPTY STRING on a scheduled run, so every input
+          # needs its fallback here. FUZZ_SEED had none, and the test turned ""
+          # into seed 0: the weekly soak never ran its documented seed, which
+          # finds three editor bugs seed 0 does not (#1407). The test now
+          # refuses a non-integer, and check-workflow-input-fallbacks.test.mjs
+          # refuses an input without a fallback.
           FUZZ_RUNS: ${{ inputs.fuzz_runs || '500' }}
-          FUZZ_SEED: ${{ inputs.fuzz_seed }}
+          FUZZ_SEED: ${{ inputs.fuzz_seed || '20260805' }}
           PATHOLOGICAL_SCALE: "8"
         run: ${{ matrix.command }}
 

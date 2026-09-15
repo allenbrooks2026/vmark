@@ -70,8 +70,8 @@ it(
     // diagnosis that delimiter policy "must consider flanking context, not
     // only edge whitespace".
     //
-    // That is what `serializerStrikethrough.ts` now does (audit 20260906): the
-    // `delete` handler character-references the offending neighbour, the same
+    // That is what the `delete` handler in `serializerAttention.ts` does (audit
+    // 20260906): it character-references the offending neighbour, the same
     // remedy mdast-util-to-markdown already applies to emphasis and strong.
     // Flipped RED-to-GREEN deliberately, as the original note intended.
     const bold = schema.marks.bold.create();

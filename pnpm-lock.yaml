@@ -32,7 +32,7 @@ overrides:
 
 patchedDependencies:
   mdast-util-to-markdown@2.1.2:
-    hash: 2dbee866e6cf244b099fa367885b1e8ad51ff315b895c1ad77581dee0f4206bf
+    hash: fac6c36ab79a787b23857dabd34de41ab06dc7b3e76943769c0d4177b0bae773
     path: patches/mdast-util-to-markdown@2.1.2.patch
   micromark@4.0.2:
     hash: c4162f5915a6a3308e12ec56d2a8ef6a3a9cbaa7abea611d0ce5957fc4f620ea
@@ -16711,7 +16711,7 @@ snapshots:
       devlop: 1.1.0
       escape-string-regexp: 5.0.0
       mdast-util-from-markdown: 2.0.3
-      mdast-util-to-markdown: 2.1.2(patch_hash=2dbee866e6cf244b099fa367885b1e8ad51ff315b895c1ad77581dee0f4206bf)
+      mdast-util-to-markdown: 2.1.2(patch_hash=fac6c36ab79a787b23857dabd34de41ab06dc7b3e76943769c0d4177b0bae773)
       micromark-extension-frontmatter: 2.0.0
     transitivePeerDependencies:
       - supports-color
@@ -16729,7 +16729,7 @@ snapshots:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
       mdast-util-from-markdown: 2.0.3
-      mdast-util-to-markdown: 2.1.2(patch_hash=2dbee866e6cf244b099fa367885b1e8ad51ff315b895c1ad77581dee0f4206bf)
+      mdast-util-to-markdown: 2.1.2(patch_hash=fac6c36ab79a787b23857dabd34de41ab06dc7b3e76943769c0d4177b0bae773)
       micromark-util-normalize-identifier: 2.0.1
     transitivePeerDependencies:
       - supports-color
@@ -16738,7 +16738,7 @@ snapshots:
     dependencies:
       '@types/mdast': 4.0.4
       mdast-util-from-markdown: 2.0.3
-      mdast-util-to-markdown: 2.1.2(patch_hash=2dbee866e6cf244b099fa367885b1e8ad51ff315b895c1ad77581dee0f4206bf)
+      mdast-util-to-markdown: 2.1.2(patch_hash=fac6c36ab79a787b23857dabd34de41ab06dc7b3e76943769c0d4177b0bae773)
     transitivePeerDependencies:
       - supports-color
 
@@ -16748,7 +16748,7 @@ snapshots:
       devlop: 1.1.0
       markdown-table: 3.0.4
       mdast-util-from-markdown: 2.0.3
-      mdast-util-to-markdown: 2.1.2(patch_hash=2dbee866e6cf244b099fa367885b1e8ad51ff315b895c1ad77581dee0f4206bf)
+      mdast-util-to-markdown: 2.1.2(patch_hash=fac6c36ab79a787b23857dabd34de41ab06dc7b3e76943769c0d4177b0bae773)
     transitivePeerDependencies:
       - supports-color
 
@@ -16757,7 +16757,7 @@ snapshots:
       '@types/mdast': 4.0.4
       devlop: 1.1.0
       mdast-util-from-markdown: 2.0.3
-      mdast-util-to-markdown: 2.1.2(patch_hash=2dbee866e6cf244b099fa367885b1e8ad51ff315b895c1ad77581dee0f4206bf)
+      mdast-util-to-markdown: 2.1.2(patch_hash=fac6c36ab79a787b23857dabd34de41ab06dc7b3e76943769c0d4177b0bae773)
     transitivePeerDependencies:
       - supports-color
 
@@ -16769,7 +16769,7 @@ snapshots:
       mdast-util-gfm-strikethrough: 2.0.0
       mdast-util-gfm-table: 2.0.0
       mdast-util-gfm-task-list-item: 2.0.0
-      mdast-util-to-markdown: 2.1.2(patch_hash=2dbee866e6cf244b099fa367885b1e8ad51ff315b895c1ad77581dee0f4206bf)
+      mdast-util-to-markdown: 2.1.2(patch_hash=fac6c36ab79a787b23857dabd34de41ab06dc7b3e76943769c0d4177b0bae773)
     transitivePeerDependencies:
       - supports-color
 
@@ -16780,7 +16780,7 @@ snapshots:
       devlop: 1.1.0
       longest-streak: 3.1.0
       mdast-util-from-markdown: 2.0.3
-      mdast-util-to-markdown: 2.1.2(patch_hash=2dbee866e6cf244b099fa367885b1e8ad51ff315b895c1ad77581dee0f4206bf)
+      mdast-util-to-markdown: 2.1.2(patch_hash=fac6c36ab79a787b23857dabd34de41ab06dc7b3e76943769c0d4177b0bae773)
       unist-util-remove-position: 5.0.0
     transitivePeerDependencies:
       - supports-color
@@ -16807,7 +16807,7 @@ snapshots:
       unist-util-visit: 5.1.0
       vfile: 6.0.3
 
-  mdast-util-to-markdown@2.1.2(patch_hash=2dbee866e6cf244b099fa367885b1e8ad51ff315b895c1ad77581dee0f4206bf):
+  mdast-util-to-markdown@2.1.2(patch_hash=fac6c36ab79a787b23857dabd34de41ab06dc7b3e76943769c0d4177b0bae773):
     dependencies:
       '@types/mdast': 4.0.4
       '@types/unist': 3.0.3
@@ -17984,7 +17984,7 @@ snapshots:
   remark-stringify@11.0.0:
     dependencies:
       '@types/mdast': 4.0.4
-      mdast-util-to-markdown: 2.1.2(patch_hash=2dbee866e6cf244b099fa367885b1e8ad51ff315b895c1ad77581dee0f4206bf)
+      mdast-util-to-markdown: 2.1.2(patch_hash=fac6c36ab79a787b23857dabd34de41ab06dc7b3e76943769c0d4177b0bae773)
       unified: 11.0.5
 
   require-directory@2.1.1: {}
