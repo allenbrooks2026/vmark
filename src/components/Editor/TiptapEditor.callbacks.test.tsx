@@ -479,6 +479,35 @@ describe("syncMarkdownToEditor — via onCreate", () => {
 
     expect(mocks.reportUnparseableDocument).not.toHaveBeenCalled();
   });
+
+  it("parses the LATEST content, not a refused snapshot the user already replaced (#1407, audit round 3)", () => {
+    // Mounted with a document the parser refuses; before the deferred parse
+    // runs, the content is repaired and the editor shown. Reporting the stale
+    // snapshot would put the repaired document in Source mode, empty.
+    const editor = createMockEditor();
+    mocks.useEditor.mockReturnValue(editor);
+    mocks.getTiptapEditorView.mockReturnValue(null);
+    mocks.reportUnparseableDocument.mockReset();
+    mocks.parseMarkdown.mockReset();
+    mocks.parseMarkdown
+      .mockImplementationOnce(() => { throw new Error("refused snapshot"); })
+      .mockImplementation(() => ({ type: "doc", content: [] }));
+    mocks.useDocumentContent.mockReturnValue("> refused");
+
+    const { rerender } = render(<TiptapEditorInner hidden={true} />);
+    const config = mocks.useEditor.mock.calls[mocks.useEditor.mock.calls.length - 1][0];
+    vi.useFakeTimers();
+    config.onCreate({ editor });
+    mocks.useDocumentContent.mockReturnValue("# repaired");
+    rerender(<TiptapEditorInner hidden={false} />);
+    vi.runAllTimers();
+    vi.useRealTimers();
+    mocks.useDocumentContent.mockReturnValue("# hello");
+    mocks.parseMarkdown.mockReset();
+    mocks.parseMarkdown.mockImplementation(() => ({ type: "doc", content: [] }));
+
+    expect(mocks.reportUnparseableDocument).not.toHaveBeenCalled();
+  });
 });
 
 // ── flushToStore coverage ───────────────────────────────────────────

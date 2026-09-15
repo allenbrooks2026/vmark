@@ -214,13 +214,13 @@ export function TiptapEditorInner({ hidden = false, readOnly = false, preview = 
           // editorInitialized) already skipped it and would not refire until
           // the next content change.
           if (contentRef.current !== contentSnapshot && !hiddenRef.current) { // hidden: synced when shown
-            syncMarkdownToEditor(
-              editor, contentRef.current, lastExternalContent, preserveLineBreaksRef.current, activeTabId,
-            );
+            syncMarkdownToEditor(editor, contentRef.current, lastExternalContent, preserveLineBreaksRef.current, activeTabId);
           }
         } catch (error) {
-          if (!hiddenRef.current) reportUnparseableDocument(activeTabId, error); // hidden: reports when shown (#1407)
           editorInitialized.current = true; // Unblock external sync even on parse error
+          if (hiddenRef.current) { /* #1407: a hidden editor re-syncs, and reports, when shown */ }
+          else if (contentRef.current !== contentSnapshot) syncMarkdownToEditor(editor, contentRef.current, lastExternalContent, preserveLineBreaksRef.current, activeTabId); // report the LATEST content
+          else reportUnparseableDocument(activeTabId, error);
         } finally {
           // Clear the "Opening large file…" StatusBar indicator once this
           // editor has a doc and is interactive. Scope the clear to the
