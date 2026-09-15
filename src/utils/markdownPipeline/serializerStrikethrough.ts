@@ -1,118 +1,15 @@
 /**
- * Strikethrough delimiter flanking — the `~~` half of what remark already does
- * for `*`.
+ * Split-surrogate repair for attention neighbour encoding.
  *
- * Purpose: stop `~~` delimiters being emitted where GFM cannot parse them back.
+ * Purpose: undo the damage `mdast-util-to-markdown` does when it character-
+ * references a delimiter's neighbour one UTF-16 code unit at a time.
  *
- * GFM gives `~~` the same delimiter-run rules as emphasis: an OPENING run must
- * be left-flanking, which it is not when it is followed by punctuation while
- * being preceded by an alphanumeric; a CLOSING run must be right-flanking, the
- * mirror image. So `plain~~* word~~tail` is not strikethrough at all — it
- * reparses as literal text, and the tildes VMark emitted become four
- * characters in the author's document that they never typed. That is text
- * corruption, not a lost mark (audit 20260906, found by the editing fuzz once
- * the mark-edge whitespace normalization stopped masking it).
+ * The `delete` handler that used to live here moved to serializerAttention.ts,
+ * which owns all three attention delimiters.
  *
- * `mdast-util-to-markdown` solves this for emphasis and strong by CHARACTER-
- * REFERENCING the offending neighbour — `plain*word*` becomes
- * `plai&#x6E;*word*`, which is punctuation before the marker, so the run
- * flanks and the text decodes back to exactly what it was. The strikethrough
- * extension never adopted it, so `delete` was left with the raw handler.
- *
- * This is that same treatment, and deliberately nothing more: no change to
- * which characters carry the mark (unlike the whitespace case, which genuinely
- * cannot be represented and must move the boundary), and no HTML fallback
- * (`<del>` round-trips as `html_inline`, not as a strike mark — measured).
- *
- * @coordinates-with markEdgeWhitespace.ts — the whitespace half of the same rule
- * @coordinates-with serializer.ts — installs this handler
+ * @coordinates-with serializer.ts — runs the repair on every serialization
  * @module utils/markdownPipeline/serializerStrikethrough
  */
-
-/** The `state` a `delete` handler receives from mdast-util-to-markdown. */
-interface DeleteState {
-  enter: (construct: string) => () => void;
-  createTracker: (info: unknown) => {
-    move: (value: string) => string;
-    /** Position bookkeeping — `{ now, lineShift }`, NOT before/after. */
-    current: () => { now: { line: number; column: number }; lineShift: number };
-  };
-  containerPhrasing: (
-    node: unknown,
-    info: { before: string; after: string },
-  ) => string;
-  /**
-   * Consumed by `containerPhrasing` to character-reference the character on
-   * either side of this node. The mechanism emphasis uses; strikethrough
-   * simply never set it.
-   */
-  attentionEncodeSurroundingInfo?: { before: boolean; after: boolean };
-}
-
-interface DeleteInfo {
-  before: string;
-  after: string;
-}
-
-/** ASCII punctuation, per CommonMark's definition for delimiter flanking. */
-const PUNCTUATION = /[!-/:-@[-`{-~]/;
-const WHITESPACE = /\s/;
-
-/**
- * Whether the character OUTSIDE a delimiter run must be character-referenced
- * for that run to flank.
- *
- * A run adjacent to punctuation only flanks when its outer neighbour is
- * whitespace or punctuation. An empty `outside` means the start or end of the
- * line, which counts as whitespace and always flanks.
- */
-function outsideNeedsEncoding(outside: string, inside: string): boolean {
-  if (!inside || !PUNCTUATION.test(inside)) return false;
-  if (!outside) return false;
-  return !WHITESPACE.test(outside) && !PUNCTUATION.test(outside);
-}
-
-/**
- * Serialize a `delete` node as `~~…~~`, asking for the surrounding characters
- * to be encoded when the delimiters would otherwise not flank.
- */
-export function handleDelete(
-  node: unknown,
-  _parent: unknown,
-  state: DeleteState,
-  info: DeleteInfo,
-): string {
-  const exit = state.enter("strikethrough");
-  const tracker = state.createTracker(info);
-  tracker.move("~~");
-  const between = tracker.move(
-    state.containerPhrasing(node, {
-      before: "~",
-      after: "~",
-      ...tracker.current(),
-    }),
-  );
-  tracker.move("~~");
-  exit();
-
-  const encodeBefore = outsideNeedsEncoding(
-    info.before.slice(-1),
-    between.slice(0, 1),
-  );
-  const encodeAfter = outsideNeedsEncoding(
-    info.after.slice(0, 1),
-    between.slice(-1),
-  );
-  if (encodeBefore || encodeAfter) {
-    state.attentionEncodeSurroundingInfo = {
-      before: encodeBefore,
-      after: encodeAfter,
-    };
-  }
-
-  return `~~${between}~~`;
-}
-
 
 /**
  * Repair numeric character references that split an astral character.

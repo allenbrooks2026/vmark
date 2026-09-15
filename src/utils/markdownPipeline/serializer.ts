@@ -5,7 +5,9 @@
  * The serializer configuration determines VMark's canonical markdown style.
  *
  * Key decisions:
- *   - Bullet: `-` (not `*`), emphasis: `*`, strong: `**`, fence: backtick
+ *   - Bullet: `-` (not `*`), emphasis: `*`, strong: `**`, fence: backtick.
+ *     Emphasis flush against a `**` sibling is written `_` instead, because
+ *     flush `*` runs merge (serializerAttention.ts)
  *   - listItemIndent: "one" — minimizes diff noise compared to "tab"
  *   - Custom handlers for image/link (serializerHandlers.ts): angle brackets
  *     for URLs with spaces instead of percent-encoding, and autolink
@@ -27,7 +29,8 @@
 
 import { unified } from "unified";
 import remarkStringify from "remark-stringify";
-import { handleDelete, repairSplitSurrogateEntities } from "./serializerStrikethrough";
+import { repairSplitSurrogateEntities } from "./serializerStrikethrough";
+import { handleDelete, handleEmphasis, handleStrong } from "./serializerAttention";
 import remarkGfm from "remark-gfm";
 import remarkMath from "remark-math";
 import remarkFrontmatter from "remark-frontmatter";
@@ -70,9 +73,11 @@ function buildSerializer() {
       handlers: {
         image: handleImage,
         link: handleLink,
-        // `~~` obeys the same flanking rules as `*`, but the gfm
-        // strikethrough extension never adopted remark's neighbour-encoding
-        // fix — so `plain~~* word~~` was emitted as literal text on reparse.
+        // Attention delimiters share one flanking model, including the
+        // alternate `_` that keeps emphasis from merging into a neighbouring
+        // `**` (serializerAttention.ts).
+        emphasis: handleEmphasis,
+        strong: handleStrong,
         delete: handleDelete,
         ...tocToMarkdown.handlers,
       } as Record<string, unknown>,
