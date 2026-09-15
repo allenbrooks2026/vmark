@@ -35,6 +35,14 @@
  *     undo returns to a state the normalizers accepted; the next user edit
  *     runs them again.
  *
+ * Boundary: the guard needs the dispatch context. ProseMirror's
+ * `filterTransaction` cannot tell a transaction appended in this batch from
+ * the next root transaction, so a transaction applied with `state.apply` and
+ * never dispatched is outside it — no VMark code does that. VMark's own
+ * normalizers also stand down on a history batch by themselves
+ * (plugins/shared/historyBatch), which holds on any path.
+ *
+ * @coordinates-with plugins/shared/historyBatch.ts — the path-independent half
  * @coordinates-with services/assembly/tiptapExtensions.ts — registers it
  * @module plugins/undoIntegrity/tiptap
  */

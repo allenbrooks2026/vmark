@@ -161,8 +161,8 @@ export function buildExtensionList(config: TiptapExtensionConfig = {}): Extensio
         newGroupDelay: 500,
       },
     }),
-    // Keeps Tiptap's clearDocument normalizer from rewriting an undo/redo,
-    // which corrupted the remaining undo history (plugins/undoIntegrity).
+    // Refuses any document change appended to an undo/redo, which corrupted
+    // the remaining undo history (plugins/undoIntegrity).
     undoIntegrityExtension,
     vmarkLinkExtension,
     // CJK-aware bold/italic (replaces StarterKit defaults)

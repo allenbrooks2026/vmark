@@ -30,6 +30,7 @@
 import { Plugin, PluginKey } from "@tiptap/pm/state";
 import type { Transaction } from "@tiptap/pm/state";
 import type { Node as PMNode } from "@tiptap/pm/model";
+import { isHistoryBatch } from "@/plugins/shared/historyBatch";
 
 const blankLinesGuardKey = new PluginKey("blankLinesGuard");
 
@@ -78,6 +79,9 @@ export function blankLinesGuard(): Plugin {
       // setContentWithoutHistory marks these `preventUpdate`; genuine user
       // edits (split, paste) never set it.
       if (transactions.some((t) => t.getMeta("preventUpdate"))) return null;
+      // An undo/redo restores the attributes it recorded; resetting them here
+      // would also corrupt the undo history (plugins/shared/historyBatch).
+      if (isHistoryBatch(transactions)) return null;
 
       const ranges = changedRanges(transactions);
       if (ranges.length === 0) return null;

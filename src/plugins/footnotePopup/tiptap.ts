@@ -13,7 +13,8 @@
  *     do not race on shared module timers.
  *   - Popup uses FootnotePopupView (DOM-based, not React) for performance
  *   - appendTransaction handles footnote deletion + renumbering in a single atomic step
- *   - appendTransaction skips during IME composition to avoid disrupting CJK input
+ *   - appendTransaction skips IME composition (would disrupt CJK input) and undo/redo
+ *     batches (would corrupt history; plugins/shared/historyBatch)
  *   - Footnote references and definitions are bidirectionally linked for navigation
  *
  * @coordinates-with FootnotePopupView.ts — DOM construction and event handling for the popup
@@ -30,17 +31,11 @@ import type { Node as PMNode, NodeType, Slice } from "@tiptap/pm/model";
 import type { EditorView } from "@tiptap/pm/view";
 import type { StoreApi } from "@/plugins/shared/types";
 import type { FootnotePopupState } from "@/plugins/shared/popupPorts";
-import {
-  HOVER_OPEN_DELAY_MS,
-  HOVER_CLOSE_DELAY_MS,
-  getHoverState,
-  clearHoverTimeout,
-  clearCloseTimeout,
-  resetHoverState,
-} from "./hoverState";
+import { HOVER_OPEN_DELAY_MS, HOVER_CLOSE_DELAY_MS, getHoverState, clearHoverTimeout, clearCloseTimeout, resetHoverState } from "./hoverState";
 import { FootnotePopupView } from "./FootnotePopupView";
 import { collectFootnoteNodes, createCleanupAndRenumberTransaction, createRenumberTransaction, hasRefCountDropped } from "./tiptapCleanup";
 import { findFootnoteDefinition, findFootnoteReference, getFootnoteDefFromTarget, getFootnoteRefFromTarget, scrollToPosition } from "./tiptapDomUtils";
+import { isHistoryBatch } from "@/plugins/shared/historyBatch";
 import "./footnote-popup.css";
 
 export const footnotePopupPluginKey = new PluginKey("footnotePopup");
@@ -308,7 +303,9 @@ export const footnotePopupExtension = Extension.create<FootnotePopupOptions>({
           if (!refType || !defType) return null;
 
           const docChanged = transactions.some((tr) => tr.docChanged);
-          if (!docChanged && !cleanupPending) return null;
+          // An undo/redo restores recorded footnotes; cleanup would rewrite it and
+          // corrupt the undo history. A pending cleanup waits for the next edit.
+          if ((!docChanged && !cleanupPending) || isHistoryBatch(transactions)) return null;
 
           // Skip during IME composition — dispatching transactions mid-composition
           // can cause ProseMirror to reconcile the DOM, disrupting active CJK input

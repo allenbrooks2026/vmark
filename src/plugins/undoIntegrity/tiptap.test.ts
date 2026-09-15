@@ -16,7 +16,7 @@
  * In both, the first undo had already shown a document that never existed.
  */
 import { afterEach, describe, expect, it } from "vitest";
-import { closeHistory } from "@tiptap/pm/history";
+import { closeHistory, undo } from "@tiptap/pm/history";
 import { Selection } from "@tiptap/pm/state";
 import { createTypingSession, type TypingSession } from "@/test/typingHarness";
 
@@ -129,6 +129,22 @@ describe("undo that removes a footnote reference", () => {
     expect(hasDefinition(session)).toBe(true);
     // The rest of the history (the harness's own load) still applies.
     expect(() => undoAll(session as TypingSession)).not.toThrow();
+  });
+
+  // The dispatch guard cannot see a transaction applied without dispatching
+  // it; VMark's own normalizers stand down on a history batch by themselves
+  // (plugins/shared/historyBatch.ts). Round 2 of the branch's audit.
+  it("keeps the definition when the undo is applied without the editor's dispatch", () => {
+    session = editDefinitionThenAddReference();
+    const { view } = session.editor;
+    const applyDirectly = () =>
+      undo(view.state, (tr) => {
+        view.updateState(view.state.apply(tr));
+      });
+    applyDirectly();
+    expect(hasDefinition(session)).toBe(true);
+    expect(applyDirectly).not.toThrow();
+    expect(session.editor.state.doc.textContent).toBe("Text here.note");
   });
 });
 
