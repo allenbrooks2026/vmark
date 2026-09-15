@@ -40,6 +40,8 @@ export type Event = [kind: "enter" | "exit", token: Token, context: TokenizeCont
 
 export type State = (code: Code) => State | undefined;
 
+export type Resolver = (events: Event[], context: TokenizeContext) => Event[];
+
 export interface Effects {
   enter: (type: string) => Token;
   exit: (type: string) => Token;
@@ -51,13 +53,16 @@ export interface Construct {
   add?: "before" | "after";
   previous?: (this: TokenizeContext, code: Code) => boolean;
   tokenize: (this: TokenizeContext, effects: Effects, ok: State, nok: State) => State;
-  resolveAll?: (events: Event[], context: TokenizeContext) => Event[];
+  resolveAll?: Resolver;
 }
 
 export interface ParseContext {
   constructs: {
-    text: Record<number, Construct | Construct[] | undefined>;
+    /** By character code, plus `null`: constructs tried at EVERY code. */
+    text: Record<number | "null", Construct | Construct[] | undefined>;
     disable: { null?: string[] };
+    /** Resolvers micromark runs over the text inside a matched span. */
+    insideSpan: { null: ReadonlyArray<{ resolveAll?: Resolver }> };
   };
 }
 
@@ -75,12 +80,17 @@ export interface SyntaxExtension {
   disable?: { null: string[] };
 }
 
-/** Constructs micromark would TRY at `code` in text: registered and not disabled. */
+const asList = (entry: Construct | Construct[] | undefined): Construct[] =>
+  Array.isArray(entry) ? entry : entry ? [entry] : [];
+
+/**
+ * Constructs micromark would TRY at `code` in text: the code's own list, then
+ * the `null` list it tries at every code — minus anything disabled.
+ */
 function activeTextConstructs(parser: ParseContext, code: number): Construct[] {
-  const registered = parser.constructs.text[code];
-  const list = Array.isArray(registered) ? registered : registered ? [registered] : [];
-  const disabled = parser.constructs.disable.null ?? [];
-  return list.filter((c) => !(c.name && disabled.includes(c.name)));
+  const { text, disable } = parser.constructs;
+  const disabled = disable.null ?? [];
+  return [...asList(text[code]), ...asList(text.null)].filter((c) => !(c.name && disabled.includes(c.name)));
 }
 
 /**

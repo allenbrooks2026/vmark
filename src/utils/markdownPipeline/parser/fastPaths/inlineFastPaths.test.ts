@@ -110,6 +110,36 @@ describe("inline fast paths leave every parse unchanged (#1407)", () => {
 
   it.each(EMPHASIS_BOUNDARIES)("at an emphasis decision boundary: %j", expectSameTree);
 
+  it("defers to a catch-all construct another extension registers for EVERY character", () => {
+    // micromark tries `text.null` constructs at every code, after the code's
+    // own list. A fast path that only read the list for `]` and backtick would
+    // settle a character such a construct was about to claim. (Audit finding.)
+    const claimsBracketsAndBackticks = {
+      name: "testCatchAll",
+      tokenize(effects: { enter(t: string): void; exit(t: string): void; consume(c: number): void }, ok: unknown, nok: (c: number) => unknown) {
+        return (code: number) => {
+          if (code !== 93 && code !== 96) return nok(code);
+          effects.enter("htmlText");
+          effects.enter("htmlTextData");
+          effects.consume(code);
+          effects.exit("htmlTextData");
+          effects.exit("htmlText");
+          return ok;
+        };
+      },
+    };
+    const withCatchAll = <T extends typeof stock>(processor: T): T => {
+      const data = processor.data() as { micromarkExtensions?: unknown[] };
+      (data.micromarkExtensions ??= []).push({ text: { null: [claimsBracketsAndBackticks] } });
+      return processor;
+    };
+    const stockWith = withCatchAll(unified().use(remarkParse).use(remarkGfm, { singleTilde: false }) as typeof stock);
+    const fastWith = withCatchAll(unified().use(remarkParse).use(remarkGfm, { singleTilde: false }).use(remarkInlineFastPaths) as typeof stock);
+    for (const markdown of ["a ] b", "a ` b", "a](a](", "e`e``e```", "*a*"]) {
+      expect(tree(fastWith, markdown), JSON.stringify(markdown)).toBe(tree(stockWith, markdown));
+    }
+  });
+
   const SEED = Number(process.env.FAST_PATH_SEED ?? "1407");
   const TOKENS = [
     "[", "]", "![", "(", ")", "<", ">", "^", " ", "\t", "\n", "\n\n", "a", "b", "\\", "`", "``",
