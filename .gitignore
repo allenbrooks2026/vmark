@@ -157,9 +157,12 @@ temp/
 # E2E smoke harness screenshot artifacts (regenerate with `pnpm e2e:smoke`)
 e2e/artifacts/
 
-# Stryker mutation testing (run with `pnpm mutation:ts`)
+# Stryker mutation testing (run with `pnpm mutation:ts`). It runs IN PLACE
+# (#1409), so the vitest runner writes its stryker-setup-<worker>.js files into
+# the project root. It deletes them when a run ends; a killed run may not.
 .stryker-tmp/
 reports/mutation/
+stryker-setup-*.js
 
 # Vitest browser-tier (WebKit) artifacts (run with `pnpm test:browser`)
 src/**/__screenshots__/

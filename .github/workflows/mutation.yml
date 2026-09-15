@@ -64,6 +64,31 @@ name: Mutation Testing
 #     tracking issue" quietly became a pair. A single downstream job that
 #     aggregates `needs.*.result` cannot race itself.
 #
+# BOTH TOOLS RUN IN PLACE (#1409). Run 34812562007 (2026-09-14) failed both
+# baselines before a single mutant ran, and the two failures were one class:
+# each tool runs the suite in a COPY of the project, and both suites read the
+# real tree.
+#   - cargo-mutants copies only `src-tauri/`. `progress.test.rs` reads
+#     `../src/export/PdfExportDialog.tsx` → NotFound → "FAILED Unmutated
+#     baseline". #1210 hit the same wall with `command_error.test.rs` and was
+#     patched with a per-test sandbox skip; on macOS the copy does not even
+#     BUILD, because six `include_str!`s reach `../../../src/lib/browser/agent/`.
+#   - Stryker copies into `.stryker-tmp/sandbox-*` and symlinks `node_modules`
+#     in from outside it. Vite's `server.fs.allow` is rooted at the sandbox, so
+#     `katex.min.css?raw` resolved to a real path outside the allow list:
+#     `Denied ID …`. Three test files failed that way (`printDocument`,
+#     `copyAsHtml`, `pickPrintHtmlSource`, measured by running the related set
+#     inside a sandbox); this log named one, because the dry run bails at the
+#     first failure. Vitest wraps the error as "There was an error when mocking
+#     a module", and the Stryker runner keeps only an error's top-level message,
+#     so the cause never reached this log either.
+# No copy, no class: `--in-place` below (a CLI-only flag in cargo-mutants 27.1.0,
+# which refuses it alongside `--jobs` or `CARGO_MUTANTS_JOBS`) and `inPlace` in
+# stryker.config.json, which both Stryker entry points name explicitly.
+# `scripts/check-mutation-in-place.test.mjs` (gate tier) fails if either tool is
+# invoked any other way. The checkout is disposable, so mutating it in place
+# costs nothing.
+#
 # See dev-docs/testing-hardening.md.
 
 # liveness-gate: true
@@ -125,9 +150,10 @@ jobs:
         # the findings. Only real errors fail the job: usage/internal (1) and
         # a red unmutated baseline (4), which is how this workflow's original
         # silent death began. See cargo-mutants' documented exit codes.
+        # `--in-place`: see "BOTH TOOLS RUN IN PLACE" above.
         run: |
           set +e
-          cargo mutants --manifest-path src-tauri/Cargo.toml
+          cargo mutants --in-place --manifest-path src-tauri/Cargo.toml
           rc=$?
           set -e
           case "$rc" in
@@ -158,6 +184,19 @@ jobs:
           cache: pnpm
 
       - run: pnpm install --frozen-lockfile
+
+      - name: Dry run, listing EVERY failing test (Stryker)
+        # The mutation run below bails its dry run at the FIRST failing test
+        # (the vitest runner passes `bail: 1` unless `disableBail`), so a red
+        # baseline is discovered one test per weekly run: run 34812562007
+        # named one of the three failing files. This dry run does not bail, so
+        # it names them all in one pass. Its price is one extra green dry run a
+        # week (8m04s in run 34089856980). `disableBail` stays out of
+        # stryker.config.json on purpose: it applies to every mutant run too,
+        # where stopping at the first kill is the speed. The config is named
+        # explicitly here and in `mutation:ts`: with no argument Stryker
+        # discovers one, and tries `stryker.conf.*` before `stryker.config.*`.
+        run: pnpm exec stryker run stryker.config.json --dryRunOnly --disableBail
 
       - name: Run scoped mutation testing (Stryker)
         # Scope is defined in stryker.config.json (mutate globs).

@@ -17,9 +17,19 @@
 #
 # Run it (binary is NOT required for `cargo test`/`cargo check`):
 #   cargo install cargo-mutants
-#   cargo mutants --manifest-path src-tauri/Cargo.toml
+#   cargo mutants --in-place --manifest-path src-tauri/Cargo.toml
 # Verify the scope applies (must list only the examine_globs files):
 #   cargo mutants --list --manifest-path src-tauri/Cargo.toml
+#
+# `--in-place` IS REQUIRED, and it cannot live in this file: cargo-mutants 27.1.0
+# has no config key for it. Without it the run happens in a copy of src-tauri/
+# alone, and this crate's tests read the frontend tree next to it
+# (`../src/...`): the unmutated baseline fails with NotFound (#1210, #1409),
+# and on macOS the copy does not even compile. In place, each mutant is applied
+# to the working tree and reverted after its test, including on Ctrl-C; commit
+# or stash first. cargo-mutants refuses `--in-place` with `--jobs` (or
+# CARGO_MUTANTS_JOBS), so a run is serial. `scripts/check-mutation-in-place.test.mjs`
+# pins the CI invocation.
 #
 # See dev-docs/testing-hardening.md for the rationale and how to widen scope.
 
