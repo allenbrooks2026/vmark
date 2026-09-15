@@ -21,6 +21,7 @@
  */
 export const WYSIWYG_COMPOSITION_ORDER: readonly string[] = [
   "starterKit",
+  "undoIntegrity",
   "link",
   "bold",
   "italic",
